@@ -358,17 +358,17 @@ function renderArmory() {
 
 // Input Listeners
 window.addEventListener('keydown', (e) => {
-    keys[e.key.toLowerCase()] = true;
+    keys[e.code] = true;
     
-    if (e.key === 'Escape' && gameState === 'PLAYING') togglePause();
-    else if (e.key === 'Escape' && gameState === 'PAUSED') togglePause();
+    if (e.code === 'Escape' && gameState === 'PLAYING') togglePause();
+    else if (e.code === 'Escape' && gameState === 'PAUSED') togglePause();
     
-    if (e.key === ' ' && empReady && gameState === 'PLAYING') {
+    if (e.code === 'Space' && empReady && gameState === 'PLAYING') {
         triggerEMP();
     }
 });
 window.addEventListener('keyup', (e) => {
-    keys[e.key.toLowerCase()] = false;
+    keys[e.code] = false;
 });
 window.addEventListener('blur', () => {
     // Prevent keys getting stuck if window loses focus
@@ -454,10 +454,10 @@ class Core {
         let ay = 0;
         const accel = 0.8;
         
-        if (keys['w'] || keys['arrowup']) ay -= accel;
-        if (keys['s'] || keys['arrowdown']) ay += accel;
-        if (keys['a'] || keys['arrowleft']) ax -= accel;
-        if (keys['d'] || keys['arrowright']) ax += accel;
+        if (keys['KeyW'] || keys['ArrowUp']) ay -= accel;
+        if (keys['KeyS'] || keys['ArrowDown']) ay += accel;
+        if (keys['KeyA'] || keys['ArrowLeft']) ax -= accel;
+        if (keys['KeyD'] || keys['ArrowRight']) ax += accel;
         
         if (ax !== 0 && ay !== 0) {
             ax *= 0.707;
@@ -638,7 +638,7 @@ class PlayerShield {
         let targetAngle = Math.atan2(mouseY - core.y, mouseX - core.x);
         if (targetAngle < 0) targetAngle += Math.PI * 2;
         
-        if (keys['shift'] && this.dashCooldown === 0 && energy >= 20) {
+        if ((keys['ShiftLeft'] || keys['ShiftRight']) && this.dashCooldown === 0 && energy >= 20) {
             energy -= 20;
             updateUI();
             this.dashing = 15; 
