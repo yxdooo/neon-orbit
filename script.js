@@ -1714,11 +1714,15 @@ class LightningArc {
     update() {
         this.life--;
         if (this.life === 0 && enemies.indexOf(this.target) !== -1) {
-            addScore(this.target.pts, this.target.x, this.target.y, this.target.color);
-            createExplosion(this.target.x, this.target.y, this.target.color, 15);
-            getXpGem(this.target.x, this.target.y, this.target.pts);
-            if (this.target instanceof SplitterEnemy) this.target.split();
-            enemies.splice(enemies.indexOf(this.target), 1);
+            if (this.target === activeBoss) {
+                this.target.takeDamage(100);
+            } else {
+                addScore(this.target.pts, this.target.x, this.target.y, this.target.color);
+                createExplosion(this.target.x, this.target.y, this.target.color, 15);
+                getXpGem(this.target.x, this.target.y, this.target.pts);
+                if (this.target instanceof SplitterEnemy) this.target.split();
+                enemies.splice(enemies.indexOf(this.target), 1);
+            }
             sfx.playHit();
         }
     }
@@ -2087,7 +2091,15 @@ function checkCollisions() {
             void gameContainer.offsetWidth;
             gameContainer.classList.add('flash-red');
             
-            e.active = false;
+            if (e === activeBoss) {
+                // Boss deals damage but bounces back instead of disappearing
+                e.x += (dx/dist) * 100;
+                e.y += (dy/dist) * 100;
+                e.vx = (dx/dist) * 5;
+                e.vy = (dy/dist) * 5;
+            } else {
+                e.active = false;
+            }
             
             updateUI();
             if (health <= 0) endGame();
@@ -2520,7 +2532,16 @@ function gameLoop() {
         if (slowTimeRemaining > 0) { e.vx = vx; e.vy = vy; }
         
         const dx = e.x - core.x; const dy = e.y - core.y;
-        if (Math.sqrt(dx*dx + dy*dy) > Math.max(canvas.width, canvas.height) + 500) enemies.splice(i, 1);
+        const distFromCore = Math.sqrt(dx*dx + dy*dy);
+        if (distFromCore > Math.max(canvas.width, canvas.height) + 500) {
+            if (e === activeBoss) {
+                // Keep boss in bounds
+                e.x = core.x + (dx/distFromCore) * (Math.max(canvas.width, canvas.height));
+                e.y = core.y + (dy/distFromCore) * (Math.max(canvas.width, canvas.height));
+            } else {
+                enemies.splice(i, 1);
+            }
+        }
     }
 
     checkCollisions();
