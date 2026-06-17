@@ -3,7 +3,7 @@ const ctx = canvas.getContext('2d');
 const offscreenCanvas = document.createElement('canvas');
 const offscreenCtx = offscreenCanvas.getContext('2d');
 const gameContainer = document.getElementById('game-container');
-
+const API_URL = 'http://localhost:3001';
 // UI Elements
 const uiLayer = document.getElementById('ui-layer');
 const startScreen = document.getElementById('start-screen');
@@ -263,7 +263,7 @@ function syncPendingScore() {
     let pending = localStorage.getItem('neonOrbitPendingScore');
     if (pending) {
         let data = JSON.parse(pending);
-        fetch('http://localhost:3001/api/leaderboard', {
+        fetch(`${API_URL}/api/leaderboard`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -276,7 +276,7 @@ function syncPendingScore() {
 function fetchLeaderboard() {
     syncPendingScore();
     leaderboardContent.innerHTML = 'Loading Top Pilots...';
-    fetch('http://localhost:3001/api/leaderboard')
+    fetch(`${API_URL}/api/leaderboard`)
         .then(res => res.json())
         .then(data => {
             if (data.length === 0) {
@@ -293,7 +293,21 @@ function fetchLeaderboard() {
             leaderboardContent.innerHTML = html;
         })
         .catch(err => {
-            leaderboardContent.innerHTML = '<span style="color: #ff3333;">Failed to connect to Global Server.</span><br>Make sure the Node.js server is running!';
+            // OFFLINE FALLBACK
+            let localScores = JSON.parse(localStorage.getItem('neonOrbitLocalScores') || '[]');
+            if (localScores.length === 0) {
+                leaderboardContent.innerHTML = '<span style="color: #ff3333;">Offline Mode.</span><br>No local records found.';
+                return;
+            }
+            let html = '<div style="color: #ff3333; text-align: center; margin-bottom: 10px; font-size: 14px;">[ OFFLINE MODE - LOCAL RECORDS ]</div>';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="border-bottom: 1px solid #ff3333;"><th style="padding: 5px;">RANK</th><th style="padding: 5px;">PILOT</th><th style="padding: 5px; text-align: right;">SCORE</th></tr>';
+            localScores.forEach((entry, i) => {
+                let color = i === 0 ? '#ffaa00' : (i < 3 ? '#aaaaaa' : '#ffffff');
+                html += `<tr style="color: ${color};"><td style="padding: 5px;">#${i+1}</td><td style="padding: 5px;">${entry.name}</td><td style="padding: 5px; text-align: right;">${entry.score}</td></tr>`;
+            });
+            html += '</table>';
+            leaderboardContent.innerHTML = html;
         });
 }
 
@@ -1899,7 +1913,15 @@ function endGame() {
                     score: score,
                     token: btoa(score + '-NEON-' + safeInitials)
                 };
-                fetch('http://localhost:3001/api/leaderboard', {
+                
+                // Add to Local Leaderboard array
+                let localScores = JSON.parse(localStorage.getItem('neonOrbitLocalScores') || '[]');
+                localScores.push(scoreData);
+                localScores.sort((a, b) => b.score - a.score);
+                if (localScores.length > 10) localScores = localScores.slice(0, 10);
+                localStorage.setItem('neonOrbitLocalScores', JSON.stringify(localScores));
+
+                fetch(`${API_URL}/api/leaderboard`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(scoreData)
