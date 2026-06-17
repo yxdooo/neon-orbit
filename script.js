@@ -841,7 +841,7 @@ class Enemy {
         }
         this.radius = 10;
         this.color = '#ff3300';
-        this.speed = (1.8 + Math.random() * 1.0) * difficultyMultiplier; 
+        this.speed = (1.4 + Math.random() * 0.8) * Math.min(difficultyMultiplier, 2.5);  
         this.pts = 10;
         this.damage = 5;
         this.trail = [];
@@ -936,6 +936,7 @@ class WeaverEnemy extends Enemy {
         this.wobbleAngle = 0;
         this.baseVx = this.vx;
         this.baseVy = this.vy;
+        this.speed *= 0.8; // slightly slower base speed since it zigzags
     }
     update() {
         this.wobbleAngle += 0.1;
@@ -948,7 +949,7 @@ class WeaverEnemy extends Enemy {
 
         const perpX = -this.baseVy;
         const perpY = this.baseVx;
-        const wobbleFactor = Math.sin(this.wobbleAngle) * 2;
+        const wobbleFactor = Math.sin(this.wobbleAngle) * 1.2;
         this.x += this.baseVx + perpX * wobbleFactor;
         this.y += this.baseVy + perpY * wobbleFactor;
         
