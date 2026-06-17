@@ -113,8 +113,17 @@
             <div id="game-over-screen" class="overlay panel hidden">
                 <h2>SYSTEM FAILURE</h2>
                 <p>FINAL SCORE: <span id="final-score-value">0</span></p>
+                <p id="credits-earned-msg" class="hidden" style="color: var(--powerup-cyan); font-weight: bold; margin-top: 10px;">CREDITS EARNED: <span id="credits-earned-value">0</span></p>
                 <p id="new-record-msg" class="hidden" style="color: var(--powerup-yellow); font-weight: bold; margin-top: 10px;">NEW RECORD!</p>
                 <button id="restart-btn" class="neon-button margin-top">[ REBOOT ]</button>
+            </div>
+            
+            <div id="initials-modal" class="overlay panel hidden" style="border-color: gold; box-shadow: 0 0 30px gold;">
+                <h2 style="color: gold; text-shadow: 0 0 10px gold;">NEW HIGH SCORE!</h2>
+                <p style="margin-bottom: 20px;">Enter your 3-letter initials for the global leaderboard:</p>
+                <input type="text" id="initials-input" maxlength="3" style="font-family: 'Orbitron', sans-serif; font-size: 24px; text-align: center; width: 100px; padding: 10px; background: rgba(0,0,0,0.5); border: 2px solid gold; color: white; text-transform: uppercase;" autocomplete="off">
+                <br>
+                <button id="submit-score-btn" class="neon-button margin-top" style="border-color: gold; color: gold;">[ SUBMIT ]</button>
             </div>
 
             <div id="level-up-screen" class="overlay panel hidden">
@@ -134,6 +143,12 @@
 
             <button id="mute-btn" class="icon-button">🔊</button>
         </div>
+        <div id="leaderboard-panel" class="panel">
+            <h2>GLOBAL TOP 10</h2>
+            <div id="leaderboard-list">Loading...</div>
+        </div>
+
+        <div id="toast-container" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; pointer-events: none;"></div>
     </div>
     <script src="script.js"></script>
 </body>

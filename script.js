@@ -27,6 +27,13 @@ const xpBar = document.getElementById('xp-bar');
 const levelValue = document.getElementById('level-value');
 const empReadyText = document.getElementById('emp-ready-text');
 
+const initialsModal = document.getElementById('initials-modal');
+const submitScoreBtn = document.getElementById('submit-score-btn');
+const initialsInput = document.getElementById('initials-input');
+const creditsEarnedMsg = document.getElementById('credits-earned-msg');
+const creditsEarnedValue = document.getElementById('credits-earned-value');
+const toastContainer = document.getElementById('toast-container');
+
 const startBtn = document.getElementById('start-btn');
 const infoBtn = document.getElementById('info-btn');
 const quitBtn = document.getElementById('quit-btn');
@@ -229,7 +236,7 @@ if (quitBtn) {
         if (window.electronAPI) {
             window.electronAPI.quitGame();
         } else {
-            alert('Desktop Mode Only. Please close the tab.');
+            showToast('Desktop Mode Only. Please close the tab.');
         }
     });
 }
@@ -1771,7 +1778,12 @@ function initGame() {
     player = new PlayerShield();
     turret = new AutoTurret();
     enemies = []; projectiles = []; friendlyProjectiles = []; particles = []; powerUps = []; xpGems = []; floatingTexts = []; shockwaves = []; empShockwaves = []; lightningArcs = [];
-    score = 0; health = 100; maxHealth = 100; frames = 0; difficultyMultiplier = 1; 
+    score = 0;
+    health = 100;
+    maxHealth = 100;
+    frames = 0;
+    difficultyMultiplier = 1;
+    nextDifficultyTarget = 200;
     bossTier = 1; activeBoss = null; bossSpawnTarget = getNextBossTarget(bossTier);
     shakeTime = 0; slowTimeRemaining = 0; overchargeRemaining = 0;
     comboMultiplier = 1; comboTimer = 0;
@@ -1921,7 +1933,12 @@ function addScore(basePts, x, y, color) {
         highScore = score;
         hiScoreInGame.innerText = highScore;
     }
-    if (score % 200 === 0) difficultyMultiplier += 0.1;
+    
+    if (score >= nextDifficultyTarget) {
+        difficultyMultiplier += 0.1;
+        nextDifficultyTarget += 200;
+    }
+    
     updateUI();
 }
 
@@ -2135,47 +2152,64 @@ function endGame() {
     gameOverScreen.classList.remove('hidden');
     scoreBoard.classList.add('hidden');
     healthBoard.classList.add('hidden');
+    
+    if (earnedCredits > 0) {
+        creditsEarnedMsg.classList.remove('hidden');
+        creditsEarnedValue.innerText = earnedCredits;
+    } else {
+        creditsEarnedMsg.classList.add('hidden');
+    }
 
     let oldHigh = parseInt(localStorage.getItem('neonOrbitHighScore')) || 0;
     if (score > oldHigh && score > 0) {
         localStorage.setItem('neonOrbitHighScore', score);
         newRecordMsg.classList.remove('hidden');
         
-        // Ask for Initials for Global Leaderboard
+        // Show our custom Modal for initials
         setTimeout(() => {
-            let initials = prompt(`NEW RECORD! You earned ${earnedCredits} Credits.\nEnter 3 letters for the Global Leaderboard:`, "PIL");
-            if (initials) {
-                let safeInitials = initials.substring(0, 3).toUpperCase();
-                let scoreData = { 
-                    name: safeInitials, 
-                    score: score,
-                    token: btoa(score + '-NEON-' + safeInitials)
-                };
-                
-                // Add to Local Leaderboard array
-                let localScores = JSON.parse(localStorage.getItem('neonOrbitLocalScores') || '[]');
-                localScores.push(scoreData);
-                localScores.sort((a, b) => b.score - a.score);
-                if (localScores.length > 10) localScores = localScores.slice(0, 10);
-                localStorage.setItem('neonOrbitLocalScores', JSON.stringify(localScores));
-
-                fetch(`${API_URL}/api/leaderboard`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(scoreData)
-                }).catch(err => {
-                    console.log('Could not post to leaderboard, saving locally pending sync.');
-                    localStorage.setItem('neonOrbitPendingScore', JSON.stringify(scoreData));
-                });
-            }
+            initialsModal.classList.remove('hidden');
+            initialsInput.focus();
         }, 500);
     } else {
         newRecordMsg.classList.add('hidden');
-        setTimeout(() => {
-            if(earnedCredits > 0) alert(`GAME OVER.\nYou earned ${earnedCredits} Credits!`);
-        }, 500);
     }
 }
+
+submitScoreBtn.addEventListener('click', async () => {
+    let initials = initialsInput.value.trim();
+    if (!initials) initials = "PIL";
+    
+    let safeInitials = initials.substring(0, 3).toUpperCase();
+    
+    let token = await generateHMAC(`${score}-NEON-${safeInitials}`);
+    
+    let scoreData = { 
+        name: safeInitials, 
+        score: score,
+        token: token
+    };
+    
+    // Add to Local Leaderboard array
+    let localScores = JSON.parse(localStorage.getItem('neonOrbitLocalScores') || '[]');
+    localScores.push(scoreData);
+    localScores.sort((a, b) => b.score - a.score);
+    if (localScores.length > 10) localScores = localScores.slice(0, 10);
+    localStorage.setItem('neonOrbitLocalScores', JSON.stringify(localScores));
+
+    fetch(`${API_URL}/api/leaderboard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(scoreData)
+    }).then(() => {
+        showToast("Score successfully submitted!");
+    }).catch(err => {
+        console.log('Could not post to leaderboard, saving locally pending sync.');
+        localStorage.setItem('neonOrbitPendingScore', JSON.stringify(scoreData));
+        showToast("Offline. Score saved locally.");
+    });
+    
+    initialsModal.classList.add('hidden');
+});
 
 function spawnEnemy() {
     if (activeBoss) return; // Halt normal spawns during boss fight
