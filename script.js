@@ -595,7 +595,7 @@ class AutoTurret {
                 sfx.playLaser();
                 
                 if (closest instanceof DreadnoughtBoss) {
-                    closest.bounce();
+                    closest.takeDamage(2);
                     if (closest.hp <= 0) {
                         closest.die();
                         enemies.splice(enemies.indexOf(closest), 1);
@@ -779,7 +779,7 @@ class Drone {
             let e = enemies[i];
             if (Math.hypot(e.x - this.x, e.y - this.y) < e.radius + this.radius) {
                 if (e instanceof DreadnoughtBoss) {
-                    e.bounce();
+                    e.takeDamage(1);
                     if (e.hp <= 0) { e.die(); enemies.splice(i, 1); }
                 } else {
                     addScore(e.pts, e.x, e.y, e.color);
