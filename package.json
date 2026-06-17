@@ -4,8 +4,8 @@
   "description": "Neon Orbit is a fast-paced, synthwave-inspired top-down arcade survival game built entirely with HTML5 Canvas, CSS3, and vanilla JavaScript. Defend your high-tech reactor core from endless waves of enemies, collect XP to level up your arsenal, and unleash devastating EMPs to clear the screen!",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "server": "node server/server.js"
+    "start": "node server/server.js",
+    "start:desktop": "electron ."
   },
   "repository": {
     "type": "git",
