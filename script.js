@@ -170,6 +170,7 @@ let empShockwaves = [];
 let lightningArcs = [];
 let drones = [];
 let stars = [];
+let nextDifficultyTarget = 200;
 
 // Power-up States
 let slowTimeRemaining = 0;
@@ -219,6 +220,7 @@ function initStars() {
             size: Math.random() * 2,
             z: Math.random() * 0.5 + 0.1, 
             brightness: Math.random(),
+            speed: Math.random() * 0.2 + 0.05,
             color: colors[Math.floor(Math.random()*colors.length)]
         });
     }
@@ -759,6 +761,7 @@ class XpGem {
     }
 }
 
+const MAX_XP_GEMS = 150;
 function getXpGem(x, y, value) {
     for (let i = 0; i < xpGems.length; i++) {
         if (!xpGems[i].active) {
@@ -766,7 +769,13 @@ function getXpGem(x, y, value) {
             return xpGems[i];
         }
     }
-    let g = new XpGem();
+    if (xpGems.length < MAX_XP_GEMS) {
+        let g = new XpGem();
+        g.init(x, y, value);
+        xpGems.push(g);
+        return g;
+    }
+    let g = xpGems.shift();
     g.init(x, y, value);
     xpGems.push(g);
     return g;
@@ -909,10 +918,7 @@ class Enemy {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = this.color;
         ctx.fill();
-        ctx.shadowBlur = 0;
     }
 }
 
@@ -995,7 +1001,7 @@ class SniperEnemy extends Enemy {
             this.x -= this.vx * 2;
             this.y -= this.vy * 2;
             if (this.x < -100 || this.x > canvas.width+100 || this.y < -100 || this.y > canvas.height+100) {
-                this.life = 0; 
+                this.active = false;
             }
         } else {
             let d = Math.hypot(core.x - this.x, core.y - this.y);
@@ -1127,12 +1133,13 @@ class DreadnoughtBoss extends Enemy {
         this.damage = 40 + tier * 10;
         this.maxHp = 500 * tier; 
         this.hp = this.maxHp; 
+        this.flash = 0;
         this.pulse = 0;
         this.spawnTimer = 0;
         this.tier = tier;
         this.setupVelocity();
         sfx.playBossSpawn();
-        floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/4, 'DREADNOUGHT INCOMING', '#ff0000'));
+        addFloatingText();
     }
     update() {
         if (!this.active) return;
@@ -1233,12 +1240,13 @@ class SwarmQueenBoss extends Enemy {
         this.damage = 30 + tier * 5;
         this.maxHp = 400 * tier; 
         this.hp = this.maxHp; 
+        this.flash = 0;
         this.pulse = 0;
         this.spawnTimer = 0;
         this.tier = tier;
         this.setupVelocity();
         sfx.playBossSpawn();
-        floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/4, 'SWARM QUEEN INCOMING', '#ff00ff'));
+        addFloatingText();
     }
     update() {
         if (!this.active) return;
@@ -1334,12 +1342,13 @@ class WraithBoss extends Enemy {
         this.damage = 50 + tier * 10;
         this.maxHp = 300 * tier; 
         this.hp = this.maxHp; 
+        this.flash = 0;
         this.pulse = 0;
         this.spawnTimer = 0;
         this.tier = tier;
         this.setupVelocity();
         sfx.playBossSpawn();
-        floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/4, 'WRAITH INCOMING', '#00ffff'));
+        addFloatingText();
     }
     update() {
         if (!this.active) return;
@@ -1445,10 +1454,7 @@ class Projectile {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
         ctx.fillStyle = this.color;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = this.color;
         ctx.fill();
-        ctx.shadowBlur = 0;
     }
 }
 
@@ -1492,8 +1498,6 @@ class FriendlyProjectile {
             ctx.strokeStyle = this.color;
             ctx.lineWidth = this.radius * 2;
             ctx.lineCap = 'round';
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = this.color;
             ctx.stroke();
         }
         
@@ -1664,8 +1668,6 @@ class Particle {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = this.color;
         ctx.fill();
         ctx.restore();
     }
@@ -1767,8 +1769,31 @@ class LightningArc {
     }
 }
 
+const MAX_FLOATING_TEXTS = 30;
+function addFloatingText(x, y, text, color) {
+    for (let i = 0; i < floatingTexts.length; i++) {
+        if (floatingTexts[i].life <= 0) {
+            floatingTexts[i].init(x, y, text, color);
+            return floatingTexts[i];
+        }
+    }
+    if (floatingTexts.length < MAX_FLOATING_TEXTS) {
+        let f = new FloatingText();
+        f.init(x, y, text, color);
+        floatingTexts.push(f);
+        return f;
+    }
+    let f = floatingTexts.shift();
+    f.init(x, y, text, color);
+    floatingTexts.push(f);
+    return f;
+}
+
 class FloatingText {
-    constructor(x, y, text, color) {
+    constructor() {
+        this.active = false;
+            }
+    init(x, y, text, color) {
         this.x = x; this.y = y; this.text = text; this.color = color;
         this.life = 1; this.vy = -2;
         this.scale = 1.5;
@@ -1866,6 +1891,7 @@ function updateUI() {
     xpBar.style.width = Math.min(100, (xp / xpTarget) * 100) + '%';
 }
 
+const MAX_PARTICLES = 200;
 function getParticle(x, y, color) {
     for (let i = 0; i < particles.length; i++) {
         if (!particles[i].active) {
@@ -1873,7 +1899,13 @@ function getParticle(x, y, color) {
             return particles[i];
         }
     }
-    let p = new Particle();
+    if (particles.length < MAX_PARTICLES) {
+        let p = new Particle();
+        p.init(x, y, color);
+        particles.push(p);
+        return p;
+    }
+    let p = particles.shift();
     p.init(x, y, color);
     particles.push(p);
     return p;
@@ -1906,7 +1938,7 @@ function castChainLightning(x, y) {
 function addScore(basePts, x, y, color) {
     const totalPts = basePts * comboMultiplier;
     score += totalPts;
-    floatingTexts.push(new FloatingText(x, y, `+${totalPts}`, color));
+    addFloatingText();
     
     if (!empReady) {
         energy += 5 * energyGainMultiplier; 
@@ -1917,7 +1949,7 @@ function addScore(basePts, x, y, color) {
     
     if (comboMultiplier > 1 && comboMultiplier % 10 === 0) {
         health = Math.min(maxHealth, health + 10);
-        floatingTexts.push(new FloatingText(core.x, core.y - 60, 'COMBO HEAL +10', '#00ff00'));
+        addFloatingText();
         sfx.playPowerUp();
     }
     
@@ -2024,6 +2056,7 @@ function checkCollisions() {
         const p = projectiles[i];
         if (!p.active) continue;
         const dx = p.x - core.x; const dy = p.y - core.y;
+        if (Math.abs(dx) > player.radius + 50 || Math.abs(dy) > player.radius + 50) continue;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
         if (dist <= player.radius + p.radius + player.thickness/2 && dist >= player.radius - p.radius - player.thickness/2) {
@@ -2065,6 +2098,7 @@ function checkCollisions() {
         for (let i = enemies.length - 1; i >= 0; i--) {
             const e = enemies[i];
             if (!e.active) continue;
+            if (Math.abs(e.x - fp.x) > e.radius + fp.radius || Math.abs(e.y - fp.y) > e.radius + fp.radius) continue;
             const dist = Math.hypot(e.x - fp.x, e.y - fp.y);
             if (dist < e.radius + fp.radius) {
                 e.takeDamage(15);
@@ -2079,6 +2113,7 @@ function checkCollisions() {
         if (!e.active) continue;
 
         const dx = e.x - core.x; const dy = e.y - core.y;
+        if (Math.abs(dx) > player.radius + 100 || Math.abs(dy) > player.radius + 100) continue;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
         if (!(e instanceof PhantomEnemy) && dist <= player.radius + e.radius + player.thickness/2 && dist >= player.radius - e.radius - player.thickness/2) {
@@ -2145,7 +2180,7 @@ function checkCollisions() {
                     for(let m=0; m<6; m++) friendlyProjectiles.push(new HomingMissile(core.x, core.y)); 
                 }
                 
-                floatingTexts.push(new FloatingText(p.x, p.y, p.label, p.color));
+                addFloatingText();
                 createExplosion(p.x, p.y, p.color, 20);
                 powerUps.splice(i, 1);
                 updateUI();
@@ -2329,18 +2364,16 @@ function drawNebulaBackground() {
     
     // Vertical Lines (fanning out)
     ctx.lineWidth = 2;
+    let lineGrd = ctx.createLinearGradient(0, 0, 0, canvas.height/2);
+    lineGrd.addColorStop(0, 'rgba(0, 255, 255, 0)');
+    lineGrd.addColorStop(0.3, 'rgba(0, 255, 255, 0.4)');
+    lineGrd.addColorStop(1, 'rgba(255, 0, 255, 0.8)');
     for (let x = -25; x <= 25; x++) {
         ctx.beginPath();
-        // Scale down the horizon points and scale up the bottom points reasonably
-        let startX = x * 15; // Converge near horizon
-        let endX = x * 120;  // Fan out at the bottom
-        ctx.moveTo(startX, 0); // Horizon
-        ctx.lineTo(endX, canvas.height); // Bottom
-        
-        let lineGrd = ctx.createLinearGradient(0, 0, 0, canvas.height/2);
-        lineGrd.addColorStop(0, 'rgba(0, 255, 255, 0)');
-        lineGrd.addColorStop(0.3, 'rgba(0, 255, 255, 0.4)');
-        lineGrd.addColorStop(1, 'rgba(255, 0, 255, 0.8)');
+        let startX = x * 15;
+        let endX = x * 120;
+        ctx.moveTo(startX, 0);
+        ctx.lineTo(endX, canvas.height);
         ctx.strokeStyle = lineGrd;
         ctx.stroke();
     }
@@ -2422,37 +2455,7 @@ function drawBossUI() {
     ctx.restore();
 }
 
-function drawBossUI() {
-    if (!activeBoss) return;
-    
-    ctx.save();
-    
-    const barWidth = 400;
-    const barHeight = 25;
-    const x = canvas.width / 2 - barWidth / 2;
-    const y = 30;
-    
-    // Background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(x - 5, y - 5, barWidth + 10, barHeight + 10);
-    ctx.strokeStyle = activeBoss.color;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x - 5, y - 5, barWidth + 10, barHeight + 10);
-    
-    // Fill
-    const hpRatio = Math.max(0, activeBoss.hp / activeBoss.maxHp);
-    ctx.fillStyle = activeBoss.color;
-    ctx.fillRect(x, y, barWidth * hpRatio, barHeight);
-    
-    // Text
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 16px Orbitron';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(activeBoss.name + ' - TIER ' + activeBoss.tier, canvas.width / 2, y + barHeight / 2);
-    
-    ctx.restore();
-}
+
 
 function gameLoop() {
     if (gameState !== 'PLAYING') return;
