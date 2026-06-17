@@ -1426,6 +1426,7 @@ class WraithBoss extends Enemy {
 
 class Projectile {
     constructor(x, y) {
+        this.active = true;
         this.x = x; this.y = y;
         this.radius = 4;
         this.color = '#ffffff';
@@ -1451,8 +1452,23 @@ class Projectile {
     }
 }
 
+class EnemyProjectile extends Projectile {
+    constructor(x, y, targetX, targetY, speed, damage, color) {
+        super(x, y);
+        this.radius = 6;
+        this.color = color || '#ffffff';
+        this.damage = damage;
+        let dx = targetX - x;
+        let dy = targetY - y;
+        let dist = Math.hypot(dx, dy);
+        this.vx = (dx/dist) * speed * difficultyMultiplier;
+        this.vy = (dy/dist) * speed * difficultyMultiplier;
+    }
+}
+
 class FriendlyProjectile {
     constructor(x, y, vx, vy) {
+        this.active = true;
         this.x = x; this.y = y;
         this.radius = 4;
         this.color = '#00ffaa';
@@ -1491,6 +1507,7 @@ class FriendlyProjectile {
 
 class HomingMissile {
     constructor(x, y) {
+        this.active = true;
         this.x = x; this.y = y;
         this.radius = 3;
         this.color = '#ff00ff';
