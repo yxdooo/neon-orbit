@@ -1,5 +1,7 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const offscreenCanvas = document.createElement('canvas');
+const offscreenCtx = offscreenCanvas.getContext('2d');
 const gameContainer = document.getElementById('game-container');
 
 // UI Elements
@@ -27,6 +29,7 @@ const empReadyText = document.getElementById('emp-ready-text');
 
 const startBtn = document.getElementById('start-btn');
 const infoBtn = document.getElementById('info-btn');
+const quitBtn = document.getElementById('quit-btn');
 const closeInfoBtn = document.getElementById('close-info-btn');
 const armoryBtn = document.getElementById('armory-btn');
 const closeArmoryBtn = document.getElementById('close-armory-btn');
@@ -190,6 +193,7 @@ function resize() {
         core.y = canvas.height / 2;
     }
     initStars();
+    preRenderBackground();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -215,6 +219,16 @@ infoBtn.addEventListener('click', () => {
     startScreen.classList.add('hidden');
     infoScreen.classList.remove('hidden');
 });
+if (quitBtn) {
+    quitBtn.addEventListener('click', () => {
+        sfx.playClick();
+        if (window.electronAPI) {
+            window.electronAPI.quitGame();
+        } else {
+            alert('Desktop Mode Only. Please close the tab.');
+        }
+    });
+}
 closeInfoBtn.addEventListener('click', () => {
     sfx.playClick();
     infoScreen.classList.add('hidden');
@@ -249,7 +263,22 @@ closeLeaderboardBtn.addEventListener('click', () => {
     startScreen.classList.remove('hidden');
 });
 
+function syncPendingScore() {
+    let pending = localStorage.getItem('neonOrbitPendingScore');
+    if (pending) {
+        let data = JSON.parse(pending);
+        fetch('http://localhost:3001/api/leaderboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => { if (res.ok) localStorage.removeItem('neonOrbitPendingScore'); })
+        .catch(err => console.log('Still offline, keeping pending score.'));
+    }
+}
+
 function fetchLeaderboard() {
+    syncPendingScore();
     leaderboardContent.innerHTML = 'Loading Top Pilots...';
     fetch('http://localhost:3001/api/leaderboard')
         .then(res => res.json())
@@ -423,22 +452,38 @@ class Core {
         this.trail = [];
     }
     update() {
-        this.vx = 0;
-        this.vy = 0;
-        if (keys.w || keys.W) this.vy -= this.speed;
-        if (keys.s || keys.S) this.vy += this.speed;
-        if (keys.a || keys.A) this.vx -= this.speed;
-        if (keys.d || keys.D) this.vx += this.speed;
+        let ax = 0;
+        let ay = 0;
+        const accel = 0.8;
         
-        if (this.vx !== 0 && this.vy !== 0) {
-            this.vx *= 0.707;
-            this.vy *= 0.707;
+        if (keys.w || keys.W) ay -= accel;
+        if (keys.s || keys.S) ay += accel;
+        if (keys.a || keys.A) ax -= accel;
+        if (keys.d || keys.D) ax += accel;
+        
+        if (ax !== 0 && ay !== 0) {
+            ax *= 0.707;
+            ay *= 0.707;
+        }
+
+        this.vx += ax;
+        this.vy += ay;
+        
+        // Damping (Friction)
+        this.vx *= 0.9;
+        this.vy *= 0.9;
+
+        // Cap speed
+        const speed = Math.hypot(this.vx, this.vy);
+        if (speed > this.speed) {
+            this.vx = (this.vx / speed) * this.speed;
+            this.vy = (this.vy / speed) * this.speed;
         }
 
         this.x += this.vx;
         this.y += this.vy;
         
-        if (this.vx !== 0 || this.vy !== 0) {
+        if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
             this.trail.push({x: this.x, y: this.y});
             if (this.trail.length > 10) this.trail.shift();
         } else if (this.trail.length > 0) {
@@ -655,7 +700,11 @@ class PlayerShield {
 }
 
 class XpGem {
-    constructor(x, y, value) {
+    constructor() {
+        this.active = false;
+    }
+    init(x, y, value) {
+        this.active = true;
         this.x = x; this.y = y;
         this.value = value;
         this.radius = 4 + (value/10);
@@ -666,11 +715,13 @@ class XpGem {
         this.vy = Math.sin(a) * 0.5;
     }
     update() {
+        if (!this.active) return;
         this.pulse += 0.1;
         this.x += this.vx;
         this.y += this.vy;
     }
     draw() {
+        if (!this.active) return;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius + Math.sin(this.pulse), 0, Math.PI*2);
         ctx.fillStyle = this.color;
@@ -679,6 +730,19 @@ class XpGem {
         ctx.fill();
         ctx.shadowBlur = 0;
     }
+}
+
+function getXpGem(x, y, value) {
+    for (let i = 0; i < xpGems.length; i++) {
+        if (!xpGems[i].active) {
+            xpGems[i].init(x, y, value);
+            return xpGems[i];
+        }
+    }
+    let g = new XpGem();
+    g.init(x, y, value);
+    xpGems.push(g);
+    return g;
 }
 
 class Drone {
@@ -754,8 +818,37 @@ class Enemy {
         this.pts = 10;
         this.damage = 5;
         this.trail = [];
+        this.hp = 1;
+        this.life = 1; // Prevent undefined errors in sub-classes
+        this.active = true;
         this.setupVelocity();
     }
+    
+    takeDamage(amount = 1) {
+        if (!this.active) return false;
+        
+        this.hp -= amount;
+        
+        // Visuals
+        sfx.playHit();
+        createExplosion(this.x, this.y, this.color, 5);
+        
+        if (this.hp <= 0) {
+            this.die();
+            return true;
+        }
+        return false;
+    }
+    
+    die() {
+        this.active = false;
+        addScore(this.pts, this.x, this.y, this.color);
+        createExplosion(this.x, this.y, this.color, 15);
+        xpGems.push(new XpGem(this.x, this.y, this.pts));
+        
+        if (this instanceof SplitterEnemy) this.split();
+    }
+
     setupVelocity() {
         const dx = core.x - this.x;
         const dy = core.y - this.y;
@@ -923,8 +1016,8 @@ class GravityEnemy extends Enemy {
         let dy = this.y - core.y;
         let dist = Math.hypot(dx, dy);
         if (dist < 350 && dist > this.radius) {
-            core.x += (dx/dist) * 0.5; 
-            core.y += (dy/dist) * 0.5;
+            core.vx += (dx/dist) * 0.3; 
+            core.vy += (dy/dist) * 0.3;
         }
         for(let p of powerUps) {
             let pdx = this.x - p.x;
@@ -1003,7 +1096,7 @@ class DreadnoughtBoss extends Enemy {
         this.speed = 1.0;
         this.pts = 500;
         this.damage = 40;
-        this.hp = 5; 
+        this.hp = 100; 
         this.pulse = 0;
         this.spawnTimer = 0;
         this.setupVelocity();
@@ -1011,6 +1104,7 @@ class DreadnoughtBoss extends Enemy {
         floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/4, 'DREADNOUGHT INCOMING', '#ff0000'));
     }
     update() {
+        if (!this.active) return;
         const dx = core.x - this.x;
         const dy = core.y - this.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
@@ -1020,15 +1114,16 @@ class DreadnoughtBoss extends Enemy {
         this.x += this.vx;
         this.y += this.vy;
 
-        this.pulse += 0.05;
+        if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
+            this.trail.push({x: this.x, y: this.y});
+            if (this.trail.length > 15) this.trail.shift();
+        } else if (this.trail.length > 0) {
+            this.trail.shift();
+        }
+        
         this.spawnTimer++;
-        if (this.spawnTimer > 150) { 
+        if (this.spawnTimer > 120) {
             this.spawnTimer = 0;
-            let mini = new FastEnemy();
-            mini.x = this.x;
-            mini.y = this.y;
-            mini.setupVelocity();
-            enemies.push(mini);
         }
     }
     draw() {
@@ -1060,15 +1155,24 @@ class DreadnoughtBoss extends Enemy {
         ctx.fillText(this.hp, this.x, this.y);
         ctx.restore();
     }
-    bounce() {
-        this.hp--;
+    takeDamage(amount = 1) {
+        if (!this.active) return false;
         this.flash = 5;
         applyScreenShake(10, 10);
-        createExplosion(this.x, this.y, this.color, 20);
-        sfx.playCoreDamage(); 
+        
+        // Push back
+        const dx = this.x - core.x;
+        const dy = this.y - core.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0) {
+            this.vx += (dx / dist) * 10;
+            this.vy += (dy / dist) * 10;
+        }
+        
+        return super.takeDamage(amount);
     }
     die() {
-        addScore(this.pts, this.x, this.y, this.color);
+        super.die(); // Sets active = false, adds score, base explosions
         createExplosion(this.x, this.y, this.color, 100);
         applyScreenShake(20, 20);
         for(let i=0; i<3; i++) {
@@ -1263,7 +1367,12 @@ class PowerUp {
 }
 
 class Particle {
-    constructor(x, y, color) {
+    constructor() {
+        this.active = false;
+        this.history = [];
+    }
+    init(x, y, color) {
+        this.active = true;
         this.x = x; this.y = y; this.color = color;
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 6 + 2;
@@ -1272,18 +1381,21 @@ class Particle {
         this.radius = Math.random() * 3 + 1;
         this.life = 1;
         this.decay = Math.random() * 0.02 + 0.02;
-        this.history = [];
+        this.history.length = 0;
     }
     update() {
+        if (!this.active) return;
         this.history.push({x: this.x, y: this.y});
         if (this.history.length > 5) this.history.shift();
         this.x += this.vx; this.y += this.vy;
         this.life -= this.decay;
         this.vx *= 0.95; this.vy *= 0.95;
+        if (this.life <= 0) this.active = false;
     }
     draw() {
+        if (!this.active) return;
         ctx.save();
-        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.globalAlpha = this.life;
         
         if (this.history.length > 0) {
             ctx.beginPath();
@@ -1297,8 +1409,9 @@ class Particle {
         
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = this.color;
         ctx.fill();
         ctx.restore();
     }
@@ -1489,8 +1602,21 @@ function updateUI() {
     xpBar.style.width = Math.min(100, (xp / xpTarget) * 100) + '%';
 }
 
+function getParticle(x, y, color) {
+    for (let i = 0; i < particles.length; i++) {
+        if (!particles[i].active) {
+            particles[i].init(x, y, color);
+            return particles[i];
+        }
+    }
+    let p = new Particle();
+    p.init(x, y, color);
+    particles.push(p);
+    return p;
+}
+
 function createExplosion(x, y, color, count) {
-    for (let i = 0; i < count; i++) particles.push(new Particle(x, y, color));
+    for (let i = 0; i < count; i++) getParticle(x, y, color);
 }
 
 function applyScreenShake(intensity, duration) {
@@ -1607,6 +1733,7 @@ function selectPerk(id) {
 function checkCollisions() {
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
+        if (!p.active) continue;
         const dx = p.x - core.x; const dy = p.y - core.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
@@ -1623,7 +1750,7 @@ function checkCollisions() {
                 createExplosion(p.x, p.y, p.color, 5);
                 friendlyProjectiles.push(new FriendlyProjectile(p.x, p.y, -p.vx * 2, -p.vy * 2));
                 castChainLightning(p.x, p.y);
-                projectiles.splice(i, 1);
+                p.active = false;
                 continue;
             }
         }
@@ -1637,7 +1764,7 @@ function checkCollisions() {
             gameContainer.classList.remove('flash-red');
             void gameContainer.offsetWidth;
             gameContainer.classList.add('flash-red');
-            projectiles.splice(i, 1);
+            p.active = false;
             updateUI();
             if (health <= 0) endGame();
         }
@@ -1645,24 +1772,14 @@ function checkCollisions() {
     
     for (let j = friendlyProjectiles.length - 1; j >= 0; j--) {
         const fp = friendlyProjectiles[j];
+        if (!fp.active) continue;
         for (let i = enemies.length - 1; i >= 0; i--) {
             const e = enemies[i];
+            if (!e.active) continue;
             const dist = Math.hypot(e.x - fp.x, e.y - fp.y);
             if (dist < e.radius + fp.radius) {
-                if (e instanceof DreadnoughtBoss) {
-                    e.bounce();
-                    if (e.hp <= 0) {
-                        e.die();
-                        enemies.splice(i, 1);
-                    }
-                } else {
-                    addScore(e.pts, e.x, e.y, e.color);
-                    createExplosion(e.x, e.y, e.color, 15);
-                    xpGems.push(new XpGem(e.x, e.y, e.pts));
-                    if (e instanceof SplitterEnemy) e.split();
-                    enemies.splice(i, 1);
-                }
-                friendlyProjectiles.splice(j, 1);
+                e.takeDamage(15);
+                fp.active = false;
                 break;
             }
         }
@@ -1670,10 +1787,7 @@ function checkCollisions() {
 
     for (let i = enemies.length - 1; i >= 0; i--) {
         const e = enemies[i];
-        if (e.life !== undefined && e.life <= 0) {
-            enemies.splice(i, 1);
-            continue;
-        }
+        if (!e.active) continue;
 
         const dx = e.x - core.x; const dy = e.y - core.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
@@ -1689,27 +1803,8 @@ function checkCollisions() {
             if (Math.abs(angleDiff) <= player.arcLength / 2 + 0.1) {
                 sfx.playHit();
                 shockwaves.push(new Shockwave(e.x, e.y, player.color));
-                
-                if (e instanceof DreadnoughtBoss || e instanceof GravityEnemy) {
-                    if (e instanceof DreadnoughtBoss) e.bounce();
-                    else { e.x -= e.vx*5; e.y -= e.vy*5; } 
-                    
-                    if (e.hp !== undefined && e.hp <= 0) {
-                        e.die();
-                        enemies.splice(i, 1);
-                    }
-                    continue; 
-                }
-                
-                addScore(e.pts, e.x, e.y, e.color);
-                createExplosion(e.x, e.y, e.color, 15);
-                xpGems.push(new XpGem(e.x, e.y, e.pts));
-                applyScreenShake(2, 5);
-                
-                if (e instanceof SplitterEnemy) e.split();
-                
-                enemies.splice(i, 1);
-                continue;
+                e.takeDamage(100);
+                continue; 
             }
         }
         
@@ -1724,14 +1819,7 @@ function checkCollisions() {
             void gameContainer.offsetWidth;
             gameContainer.classList.add('flash-red');
             
-            if (e instanceof DreadnoughtBoss || e instanceof GravityEnemy) {
-                if(e.hp !== undefined) e.hp--;
-                e.x -= e.vx * 20;
-                e.y -= e.vy * 20;
-                if (e.hp !== undefined && e.hp <= 0) enemies.splice(i, 1);
-            } else {
-                enemies.splice(i, 1);
-            }
+            e.active = false;
             
             updateUI();
             if (health <= 0) endGame();
@@ -1807,11 +1895,20 @@ function endGame() {
         setTimeout(() => {
             let initials = prompt(`NEW RECORD! You earned ${earnedCredits} Credits.\nEnter 3 letters for the Global Leaderboard:`, "PIL");
             if (initials) {
+                let safeInitials = initials.substring(0, 3).toUpperCase();
+                let scoreData = { 
+                    name: safeInitials, 
+                    score: score,
+                    token: btoa(score + '-NEON-' + safeInitials)
+                };
                 fetch('http://localhost:3001/api/leaderboard', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: initials.toUpperCase(), score: score })
-                }).catch(err => console.log('Could not post to leaderboard'));
+                    body: JSON.stringify(scoreData)
+                }).catch(err => {
+                    console.log('Could not post to leaderboard, saving locally pending sync.');
+                    localStorage.setItem('neonOrbitPendingScore', JSON.stringify(scoreData));
+                });
             }
         }, 500);
     } else {
@@ -1836,64 +1933,71 @@ function spawnEnemy() {
     else enemies.push(new Enemy());
 }
 
-function drawNebulaBackground() {
-    let cx = canvas.width/2;
-    let cy = canvas.height/2;
+function preRenderBackground() {
+    offscreenCanvas.width = canvas.width;
+    offscreenCanvas.height = canvas.height;
+    
+    let cx = offscreenCanvas.width/2;
+    let cy = offscreenCanvas.height/2;
     
     // Gradient Background
-    let grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    let grd = offscreenCtx.createLinearGradient(0, 0, 0, offscreenCanvas.height);
     grd.addColorStop(0, '#0a0515');
     grd.addColorStop(0.5, '#150a25'); // Horizon
     grd.addColorStop(1, '#050210');
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    offscreenCtx.fillStyle = grd;
+    offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
     
     // Synthwave Neon Sun - Enhanced
-    let sunR = Math.min(canvas.width, canvas.height) * 0.25;
-    ctx.save();
-    ctx.translate(cx, cy - 20); // Hover slightly above horizon
+    let sunR = Math.min(offscreenCanvas.width, offscreenCanvas.height) * 0.25;
+    offscreenCtx.save();
+    offscreenCtx.translate(cx, cy - 20); // Hover slightly above horizon
     
     // Massive Soft Sun Glow
-    let glowGrd = ctx.createRadialGradient(0, 0, 0, 0, 0, sunR * 2.5);
+    let glowGrd = offscreenCtx.createRadialGradient(0, 0, 0, 0, 0, sunR * 2.5);
     glowGrd.addColorStop(0, 'rgba(255, 100, 0, 0.4)');
     glowGrd.addColorStop(0.5, 'rgba(255, 0, 100, 0.1)');
     glowGrd.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = glowGrd;
-    ctx.beginPath();
-    ctx.arc(0, 0, sunR * 2.5, 0, Math.PI*2);
-    ctx.fill();
+    offscreenCtx.fillStyle = glowGrd;
+    offscreenCtx.beginPath();
+    offscreenCtx.arc(0, 0, sunR * 2.5, 0, Math.PI*2);
+    offscreenCtx.fill();
     
     // Sun Gradient
-    let sunGrd = ctx.createLinearGradient(0, -sunR, 0, sunR);
+    let sunGrd = offscreenCtx.createLinearGradient(0, -sunR, 0, sunR);
     sunGrd.addColorStop(0, '#fff5cc'); // Super bright top
     sunGrd.addColorStop(0.2, '#ffcc00'); // Yellow
     sunGrd.addColorStop(0.6, '#ff3366'); // Pink/Orange
     sunGrd.addColorStop(1, '#6600ff'); // Deep purple bottom
     
     // Draw the sun with retro cuts
-    // Instead of drawing the top half solid and clipping the bottom,
-    // let's clip the entire sun shape with calculated bars
-    ctx.beginPath();
-    ctx.arc(0, 0, sunR, 0, Math.PI*2);
-    ctx.fillStyle = sunGrd;
-    ctx.shadowBlur = 40;
-    ctx.shadowColor = '#ff00aa';
-    ctx.fill();
-    ctx.shadowBlur = 0;
+    offscreenCtx.beginPath();
+    offscreenCtx.arc(0, 0, sunR, 0, Math.PI*2);
+    offscreenCtx.fillStyle = sunGrd;
+    offscreenCtx.shadowBlur = 40;
+    offscreenCtx.shadowColor = '#ff00aa';
+    offscreenCtx.fill();
+    offscreenCtx.shadowBlur = 0;
     
-    // Blackout the retro cuts (to reveal background behind the sun)
-    ctx.globalCompositeOperation = 'destination-out';
+    // Blackout the retro cuts
+    offscreenCtx.globalCompositeOperation = 'destination-out';
     for(let i = 0; i < 9; i++) {
-        // Cut width increases as it goes down
         let yTop = (sunR * 0.1) + i * (sunR/8);
         let cutHeight = 2 + (i * 2.5); 
         
-        ctx.beginPath();
-        ctx.rect(-sunR, yTop, sunR*2, cutHeight);
-        ctx.fill();
+        offscreenCtx.beginPath();
+        offscreenCtx.rect(-sunR, yTop, sunR*2, cutHeight);
+        offscreenCtx.fill();
     }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.restore();
+    offscreenCtx.globalCompositeOperation = 'source-over';
+    offscreenCtx.restore();
+}
+
+function drawNebulaBackground() {
+    ctx.drawImage(offscreenCanvas, 0, 0);
+    
+    let cx = canvas.width/2;
+    let cy = canvas.height/2;
     
     // V10.5: Animated 3D Perspective Grid
     ctx.save();
@@ -2043,6 +2147,11 @@ function gameLoop() {
 
     for (let i = enemies.length - 1; i >= 0; i--) {
         const e = enemies[i];
+        if (!e.active) {
+            enemies.splice(i, 1);
+            continue;
+        }
+        
         const {vx, vy, speed} = e;
         if (slowTimeRemaining > 0) { e.vx *= 0.5; e.vy *= 0.5; }
         

@@ -28,9 +28,14 @@ app.get('/api/leaderboard', (req, res) => {
 // Post New Score
 app.post('/api/leaderboard', (req, res) => {
     try {
-        const { name, score } = req.body;
-        if (!name || typeof score !== 'number') {
+        const { name, score, token } = req.body;
+        if (!name || typeof score !== 'number' || !token) {
             return res.status(400).json({ error: 'Invalid data' });
+        }
+        
+        const expectedToken = Buffer.from(`${score}-NEON-${name.substring(0, 3).toUpperCase()}`).toString('base64');
+        if (token !== expectedToken) {
+            return res.status(403).json({ error: 'Invalid token' });
         }
         
         const data = JSON.parse(fs.readFileSync(dbPath));

@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 
 function createWindow() {
@@ -6,16 +6,21 @@ function createWindow() {
         width: 1280,
         height: 720,
         title: 'Neon Orbit',
-        icon: path.join(__dirname, 'icon.png'), // Will default to Electron icon if not present
+        icon: path.join(__dirname, 'icon.png'),
         autoHideMenuBar: true,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
         }
     });
 
     win.loadFile('index.html');
 }
+
+ipcMain.on('quit-game', () => {
+    app.quit();
+});
 
 app.whenReady().then(() => {
     createWindow();
