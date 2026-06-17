@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Orbit</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-container">
+        <div class="crt-overlay"></div>
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div id="score-board" class="hidden">
+                SCORE: <span id="score-value">0</span><br>
+                <span style="font-size: 14px; color: #888; text-shadow: none;">HI-SCORE: <span id="hi-score-in-game">0</span></span>
+            </div>
+            <div id="combo-container" class="hidden" style="position: absolute; top: 60px; right: 20px; font-size: 24px; font-weight: 900; color: var(--powerup-yellow); text-shadow: 0 0 10px currentColor;">
+                <span id="combo-value">x1</span>
+            </div>
+            <div id="health-board" class="hidden">
+                <div class="bar-container" style="box-shadow: 0 0 10px var(--enemy-color);">
+                    <div id="health-bar" class="bar-fill" style="background: var(--enemy-color);"></div>
+                </div>
+                <div class="bar-container" style="top: 50px; box-shadow: 0 0 10px var(--powerup-blue);">
+                    <div id="energy-bar" class="bar-fill" style="background: var(--powerup-blue);"></div>
+                </div>
+                <div class="bar-container" style="top: 80px; box-shadow: 0 0 10px #ffaa00;">
+                    <div id="xp-bar" class="bar-fill" style="background: #ffaa00;"></div>
+                    <div style="position: absolute; width: 100%; text-align: center; top: 0; font-size: 14px; font-weight: bold; line-height: 20px; color: #fff; text-shadow: 1px 1px 2px #000;">LVL <span id="level-value">1</span></div>
+                </div>
+            </div>
+
+            <div id="emp-ready-text" class="hidden">EMP READY (SPACE)</div>
+
+            <div id="start-screen" class="overlay panel">
+                <h1 class="glitch-text" data-text="NEON ORBIT">NEON ORBIT</h1>
+                <div class="margin-top">HI-SCORE: <span id="hi-score-start">0</span></div>
+                <button id="start-btn" class="neon-button margin-top">[ START SYSTEM ]</button>
+                <button id="info-btn" class="neon-button margin-top" style="display: block; margin-left: auto; margin-right: auto; margin-top: 15px;">[ HOW TO PLAY ]</button>
+            </div>
+
+            <div id="info-screen" class="overlay panel hidden">
+                <h2 style="color: var(--powerup-blue); text-shadow: 0 0 10px var(--powerup-blue);">SYSTEM MANUAL</h2>
+                <div style="text-align: left; font-size: 14px; margin-top: 20px; max-width: 400px; line-height: 1.6;">
+                    <p><strong>CONTROLS:</strong> [W,A,S,D] to move. [MOUSE] to aim shield. [SHIFT] to Dash (Costs 20 Energy). [ESC] to pause.</p>
+                    <p><strong>LEVELING:</strong> Collect yellow XP gems dropped by enemies to level up and choose powerful upgrades, including <em>Orbiting Drones</em>!</p>
+                    <p><strong>COMBO:</strong> Chain blocks without getting hit! Reaching 10x, 20x etc. instantly restores +10 Health.</p>
+                    <p><strong>EMP (SPACE):</strong> Destroy enemies to charge your blue Energy Bar. Press [SPACE] when full to destroy all enemies on screen.</p>
+                    <p><strong>AUTO-TURRET:</strong> Your core automatically fires at the closest enemy to help you out.</p>
+                    <p><strong>POWER-UPS:</strong></p>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li style="color: var(--powerup-green);">[+] REPAIR: Restores 20 Health</li>
+                        <li style="color: var(--powerup-yellow);">[O] OVERCHARGE: 360° Shield for a short time</li>
+                        <li style="color: var(--powerup-blue);">[S] CHRONO-SLOW: Slows time by 50%</li>
+                        <li style="color: #ff00ff;">[M] MISSILES: Fires 10 homing missiles</li>
+                    </ul>
+                    <p><strong>ENEMIES:</strong> Watch out for <em>Weavers</em>, <em>Splitters</em>, <em>Gravity Wells</em>, <em>Snipers</em>, and the ghostly <em>Phantom</em> (which ignores your shield!). Every 3000 points, a massive <em>Dreadnought Boss</em> appears!</p>
+                </div>
+                <button id="close-info-btn" class="neon-button margin-top">[ CLOSE ]</button>
+            </div>
+
+            <div id="game-over-screen" class="overlay panel hidden">
+                <h2>SYSTEM FAILURE</h2>
+                <p>FINAL SCORE: <span id="final-score-value">0</span></p>
+                <p id="new-record-msg" class="hidden" style="color: var(--powerup-yellow); font-weight: bold; margin-top: 10px;">NEW RECORD!</p>
+                <button id="restart-btn" class="neon-button margin-top">[ REBOOT ]</button>
+            </div>
+
+            <div id="level-up-screen" class="overlay panel hidden">
+                <h2 style="color: #ffaa00; text-shadow: 0 0 10px #ffaa00;">LEVEL UP!</h2>
+                <p style="font-size: 14px; margin-bottom: 20px;">Choose an Upgrade:</p>
+                <div id="perks-container" style="display: flex; gap: 15px; justify-content: center;">
+                    <!-- Perks injected by JS -->
+                </div>
+            </div>
+
+            <div id="pause-screen" class="overlay panel hidden">
+                <h1 class="glitch-text">PAUSED</h1>
+                <p>System Suspended.</p>
+                <button id="resume-btn" class="neon-button">RESUME</button>
+            </div>
+
+            <button id="mute-btn" class="icon-button">🔊</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

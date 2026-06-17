@@ -1,0 +1,425 @@
+:root {
+    --bg-color: #050510;
+    --core-color: #00ffff;
+    --shield-color: #ff00ff;
+    --enemy-color: #ff3300;
+    --powerup-green: #00ff00;
+    --powerup-yellow: #ffff00;
+    --powerup-blue: #0088ff;
+    --text-color: #ffffff;
+    --glass-bg: rgba(10, 10, 25, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Outfit', sans-serif;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none; /* Let clicks pass through to canvas if needed, though buttons will have pointer-events: auto */
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Score and Health */
+#score-board {
+    position: absolute;
+    top: 20px;
+    left: 30px;
+    text-shadow: 0 0 10px var(--core-color);
+}
+
+.score-label {
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: #888;
+}
+
+#score-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--core-color);
+}
+
+#health-board {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    text-align: right;
+}
+
+.health-label {
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.bar-container {
+    position: absolute;
+    right: 0;
+    width: 200px;
+    height: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    width: 100%;
+    height: 100%;
+    transition: width 0.3s ease-out;
+}
+
+#health-bar {
+    width: 100%;
+    height: 100%;
+    background: var(--enemy-color);
+    box-shadow: 0 0 10px var(--enemy-color);
+    transition: width 0.3s ease-out;
+}
+
+/* Overlays */
+.overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.panel {
+    background: rgba(10, 15, 30, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 24px;
+    padding: 50px 70px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0, 255, 255, 0.15), inset 0 0 20px rgba(255, 255, 255, 0.05);
+    position: relative;
+    animation: panelPulse 4s infinite alternate ease-in-out;
+}
+
+@keyframes panelPulse {
+    0% { box-shadow: 0 8px 32px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(0, 255, 255, 0.05); border-color: rgba(0, 255, 255, 0.1); }
+    100% { box-shadow: 0 8px 40px rgba(255, 0, 255, 0.3), inset 0 0 30px rgba(255, 0, 255, 0.1); border-color: rgba(255, 0, 255, 0.3); }
+}
+
+/* Typography */
+h1, h2 {
+    font-family: 'Orbitron', sans-serif;
+}
+h1 {
+    font-size: 48px;
+    font-weight: 900;
+    margin-bottom: 10px;
+    letter-spacing: 4px;
+}
+
+.glitch-text {
+    color: var(--text-color);
+    text-shadow: 2px 2px 0px var(--core-color), -2px -2px 0px var(--shield-color);
+    animation: glitch 2s infinite linear alternate-reverse;
+}
+
+@keyframes glitch {
+    0% { text-shadow: 2px 2px 0px var(--core-color), -2px -2px 0px var(--shield-color); }
+    20% { text-shadow: -2px 2px 0px var(--core-color), 2px -2px 0px var(--shield-color); }
+    40% { text-shadow: 2px -2px 0px var(--core-color), -2px 2px 0px var(--shield-color); }
+    60% { text-shadow: -2px -2px 0px var(--core-color), 2px 2px 0px var(--shield-color); }
+    80% { text-shadow: 3px 1px 0px var(--core-color), -1px -3px 0px var(--shield-color); }
+    100% { text-shadow: -3px -1px 0px var(--core-color), 1px 3px 0px var(--shield-color); }
+}
+
+.game-over-text {
+    color: var(--enemy-color);
+    text-shadow: 0 0 20px var(--enemy-color);
+    margin-bottom: 5px;
+}
+
+p {
+    font-size: 16px;
+    color: #ccc;
+    margin-bottom: 30px;
+    letter-spacing: 1px;
+}
+
+.controls-info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 30px;
+    font-size: 14px;
+    color: var(--core-color);
+    text-shadow: 0 0 5px var(--core-color);
+}
+
+.final-score {
+    font-size: 24px;
+    margin-bottom: 30px;
+    color: var(--shield-color);
+    text-shadow: 0 0 10px var(--shield-color);
+}
+
+#final-score-value {
+    font-weight: 900;
+    font-size: 32px;
+}
+
+/* Buttons */
+.neon-button {
+    background: transparent;
+    color: var(--text-color);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 15px 40px;
+    border: 2px solid var(--core-color);
+    border-radius: 5px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: 0.3s;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.2), inset 0 0 10px rgba(0, 255, 255, 0.1);
+}
+
+.neon-button:hover {
+    background: var(--core-color);
+    color: #000;
+    box-shadow: 0 0 30px var(--core-color), inset 0 0 20px rgba(255, 255, 255, 0.5);
+    text-shadow: none;
+}
+
+.neon-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transition: 0.5s;
+}
+
+.neon-button:hover::before {
+    left: 100%;
+}
+
+#combo-container {
+    font-size: 18px;
+    margin-top: 5px;
+    color: var(--powerup-yellow);
+    text-shadow: 0 0 10px var(--powerup-yellow);
+    transition: transform 0.1s, color 0.3s;
+}
+
+#combo-container.active {
+    transform: scale(1.2);
+    transform-origin: left;
+}
+
+.hi-score-display {
+    font-size: 12px;
+    color: #aaa;
+    margin-top: 10px;
+    letter-spacing: 1px;
+}
+
+.margin-top {
+    margin-top: 20px;
+}
+
+.neon-text-green {
+    color: var(--powerup-green);
+    text-shadow: 0 0 15px var(--powerup-green);
+    font-weight: 900;
+    margin-top: 10px;
+}
+
+.blink {
+    animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+    50% { opacity: 0; }
+}
+
+.icon-button {
+    position: absolute;
+    bottom: 20px;
+    right: 30px;
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: white;
+    pointer-events: auto;
+    opacity: 0.5;
+    transition: 0.3s;
+}
+
+.icon-button:hover {
+    opacity: 1;
+}
+
+.icon-button.muted {
+    opacity: 0.2;
+}
+
+/* Flash effect */
+#game-container.flash-red {
+    animation: flashRed 0.2s ease-out;
+}
+
+@keyframes flashRed {
+    0% { box-shadow: inset 0 0 100px rgba(255, 0, 0, 0.8); }
+    100% { box-shadow: inset 0 0 0 rgba(255, 0, 0, 0); }
+}
+
+/* Energy Bar */
+.energy-label {
+    display: none;
+}
+
+#energy-bar {
+    width: 0%;
+    height: 100%;
+    background: var(--powerup-blue);
+    box-shadow: 0 0 10px var(--powerup-blue);
+    transition: width 0.1s linear;
+}
+
+#energy-bar.full {
+    background: #ffffff;
+    box-shadow: 0 0 20px #ffffff;
+    animation: pulseWhite 0.5s infinite alternate;
+}
+
+@keyframes pulseWhite {
+    from { opacity: 0.8; }
+    to { opacity: 1; }
+}
+
+#emp-ready-text {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    font-weight: 900;
+    color: #ffffff;
+    text-shadow: 0 0 20px #ffffff, 0 0 10px var(--powerup-blue);
+    letter-spacing: 4px;
+    animation: blinker 0.5s linear infinite;
+    pointer-events: none;
+}
+
+/* CRT Overlay */
+.crt-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50; /* Above canvas, below UI if we want UI crisp, or above UI to affect everything */
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 2px, 3px 100%;
+    animation: crtFlicker 0.15s infinite;
+}
+
+@keyframes crtFlicker {
+    0% { opacity: 0.95; }
+    50% { opacity: 1; }
+    100% { opacity: 0.95; }
+}
+
+/* Level Up Perks */
+.perk-card {
+    background: rgba(20, 25, 40, 0.5);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 20px 15px;
+    width: 160px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+
+.perk-card:hover {
+    border-color: #ffaa00;
+    box-shadow: 0 0 25px rgba(255, 170, 0, 0.5), inset 0 0 15px rgba(255, 170, 0, 0.2);
+    transform: translateY(-10px) scale(1.05);
+}
+
+.perk-icon {
+    font-size: 30px;
+    margin-bottom: 10px;
+}
+
+.perk-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 5px;
+}
+
+.perk-desc {
+    font-size: 10px;
+    color: #aaa;
+}
