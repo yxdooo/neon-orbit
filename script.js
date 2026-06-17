@@ -133,7 +133,15 @@ let hasDrones = false;
 let shakeTime = 0;
 let shakeIntensity = 0;
 
-let bossSpawnTarget = 3000;
+let bossTier = 1;
+let activeBoss = null;
+let bossSpawnTarget = 20000;
+
+function getNextBossTarget(tier) {
+    if (tier === 1) return 20000;
+    if (tier === 2) return 50000;
+    return 100000 + (tier - 3) * 50000;
+}
 
 // Mouse tracking
 let mouseX = window.innerWidth / 2;
@@ -1101,16 +1109,19 @@ class PhantomEnemy extends Enemy {
 }
 
 class DreadnoughtBoss extends Enemy {
-    constructor() {
+    constructor(tier) {
         super();
-        this.radius = 35;
+        this.name = "DREADNOUGHT";
+        this.radius = 35 + tier * 2;
         this.color = '#ff0000';
-        this.speed = 1.0;
-        this.pts = 500;
-        this.damage = 40;
-        this.hp = 100; 
+        this.speed = 0.8 + tier * 0.1;
+        this.pts = 1000 * tier;
+        this.damage = 40 + tier * 10;
+        this.maxHp = 500 * tier; 
+        this.hp = this.maxHp; 
         this.pulse = 0;
         this.spawnTimer = 0;
+        this.tier = tier;
         this.setupVelocity();
         sfx.playBossSpawn();
         floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/4, 'DREADNOUGHT INCOMING', '#ff0000'));
@@ -1134,8 +1145,11 @@ class DreadnoughtBoss extends Enemy {
         }
         
         this.spawnTimer++;
-        if (this.spawnTimer > 120) {
+        if (this.spawnTimer > 150 - (this.tier * 5)) {
             this.spawnTimer = 0;
+            let p = new EnemyProjectile(this.x, this.y, core.x, core.y, 4, 20 + this.tier * 5, this.color);
+            p.radius = 10;
+            projectiles.push(p);
         }
     }
     draw() {
@@ -1185,6 +1199,7 @@ class DreadnoughtBoss extends Enemy {
     }
     die() {
         super.die(); // Sets active = false, adds score, base explosions
+        activeBoss = null;
         createExplosion(this.x, this.y, this.color, 100);
         applyScreenShake(20, 20);
         for(let i=0; i<3; i++) {
@@ -1196,6 +1211,208 @@ class DreadnoughtBoss extends Enemy {
         for(let i=0; i<20; i++) {
             getXpGem(this.x, this.y, 15);
         }
+    }
+}
+
+class SwarmQueenBoss extends Enemy {
+    constructor(tier) {
+        super();
+        this.name = "SWARM QUEEN";
+        this.radius = 30 + tier * 1.5;
+        this.color = '#ff00ff';
+        this.speed = 1.2 + tier * 0.1;
+        this.pts = 1000 * tier;
+        this.damage = 30 + tier * 5;
+        this.maxHp = 400 * tier; 
+        this.hp = this.maxHp; 
+        this.pulse = 0;
+        this.spawnTimer = 0;
+        this.tier = tier;
+        this.setupVelocity();
+        sfx.playBossSpawn();
+        floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/4, 'SWARM QUEEN INCOMING', '#ff00ff'));
+    }
+    update() {
+        if (!this.active) return;
+        const dx = core.x - this.x;
+        const dy = core.y - this.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        // Evades slightly if too close
+        let targetSpeed = this.speed;
+        if (dist < 200) targetSpeed = -this.speed;
+        
+        this.vx = this.vx * 0.95 + (dx/dist)*targetSpeed * 0.05;
+        this.vy = this.vy * 0.95 + (dy/dist)*targetSpeed * 0.05;
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
+            this.trail.push({x: this.x, y: this.y});
+            if (this.trail.length > 15) this.trail.shift();
+        } else if (this.trail.length > 0) {
+            this.trail.shift();
+        }
+        
+        this.spawnTimer++;
+        if (this.spawnTimer > 120 - (this.tier * 5)) {
+            this.spawnTimer = 0;
+            // Spawn 2-3 fast enemies
+            let count = 2 + Math.floor(this.tier / 2);
+            for(let i=0; i<count; i++) {
+                let e = new FastEnemy();
+                e.x = this.x + (Math.random() * 40 - 20);
+                e.y = this.y + (Math.random() * 40 - 20);
+                enemies.push(e);
+            }
+        }
+    }
+    draw() {
+        ctx.save();
+        ctx.beginPath();
+        const currentRadius = this.radius + Math.sin(this.pulse) * 5;
+        
+        // Hexagon shape
+        for (let i = 0; i < 6; i++) {
+            let angle = (i * Math.PI) / 3 + this.pulse;
+            let hx = this.x + Math.cos(angle) * currentRadius;
+            let hy = this.y + Math.sin(angle) * currentRadius;
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+        
+        if (this.flash > 0) {
+            ctx.fillStyle = '#ffffff';
+            this.flash--;
+        } else {
+            ctx.fillStyle = this.color;
+        }
+        
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = this.color;
+        ctx.fill();
+        ctx.restore();
+    }
+    takeDamage(amount = 1) {
+        if (!this.active) return false;
+        this.flash = 5;
+        return super.takeDamage(amount);
+    }
+    die() {
+        super.die();
+        activeBoss = null;
+        createExplosion(this.x, this.y, this.color, 100);
+        applyScreenShake(20, 20);
+        for(let i=0; i<3; i++) {
+            let p = new PowerUp();
+            p.x = this.x + (Math.random()*40-20);
+            p.y = this.y + (Math.random()*40-20);
+            powerUps.push(p);
+        }
+        for(let i=0; i<20; i++) getXpGem(this.x, this.y, 15);
+    }
+}
+
+class WraithBoss extends Enemy {
+    constructor(tier) {
+        super();
+        this.name = "WRAITH";
+        this.radius = 25 + tier;
+        this.color = '#00ffff';
+        this.speed = 3.0 + tier * 0.2;
+        this.pts = 1000 * tier;
+        this.damage = 50 + tier * 10;
+        this.maxHp = 300 * tier; 
+        this.hp = this.maxHp; 
+        this.pulse = 0;
+        this.spawnTimer = 0;
+        this.tier = tier;
+        this.setupVelocity();
+        sfx.playBossSpawn();
+        floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/4, 'WRAITH INCOMING', '#00ffff'));
+    }
+    update() {
+        if (!this.active) return;
+        this.pulse += 0.1;
+        
+        const dx = core.x - this.x;
+        const dy = core.y - this.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        // erratic movement
+        let angle = Math.atan2(dy, dx) + Math.sin(this.pulse) * 1.5;
+        
+        this.vx = this.vx * 0.9 + Math.cos(angle)*this.speed * 0.1;
+        this.vy = this.vy * 0.9 + Math.sin(angle)*this.speed * 0.1;
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
+            this.trail.push({x: this.x, y: this.y});
+            if (this.trail.length > 20) this.trail.shift();
+        } else if (this.trail.length > 0) {
+            this.trail.shift();
+        }
+        
+        this.spawnTimer++;
+        if (this.spawnTimer > 90 - (this.tier * 2)) {
+            this.spawnTimer = 0;
+            let targetX = core.x + (Math.random() * 100 - 50);
+            let targetY = core.y + (Math.random() * 100 - 50);
+            let p = new EnemyProjectile(this.x, this.y, targetX, targetY, 6 + this.tier, 15 + this.tier * 5, this.color);
+            projectiles.push(p);
+        }
+    }
+    draw() {
+        ctx.save();
+        ctx.beginPath();
+        const currentRadius = this.radius + Math.sin(this.pulse) * 3;
+        
+        // Diamond shape
+        ctx.moveTo(this.x, this.y - currentRadius);
+        ctx.lineTo(this.x + currentRadius, this.y);
+        ctx.lineTo(this.x, this.y + currentRadius);
+        ctx.lineTo(this.x - currentRadius, this.y);
+        ctx.closePath();
+        
+        if (this.flash > 0) {
+            ctx.fillStyle = '#ffffff';
+            this.flash--;
+        } else {
+            ctx.fillStyle = this.color;
+        }
+        
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = this.color;
+        ctx.fill();
+        ctx.restore();
+    }
+    takeDamage(amount = 1) {
+        if (!this.active) return false;
+        this.flash = 5;
+        // High chance to teleport when hit
+        if (Math.random() > 0.85) {
+            this.x += (Math.random() * 200 - 100);
+            this.y += (Math.random() * 200 - 100);
+            createExplosion(this.x, this.y, this.color, 10);
+        }
+        return super.takeDamage(amount);
+    }
+    die() {
+        super.die();
+        activeBoss = null;
+        createExplosion(this.x, this.y, this.color, 100);
+        applyScreenShake(20, 20);
+        for(let i=0; i<3; i++) {
+            let p = new PowerUp();
+            p.x = this.x + (Math.random()*40-20);
+            p.y = this.y + (Math.random()*40-20);
+            powerUps.push(p);
+        }
+        for(let i=0; i<20; i++) getXpGem(this.x, this.y, 15);
     }
 }
 
@@ -1554,7 +1771,8 @@ function initGame() {
     player = new PlayerShield();
     turret = new AutoTurret();
     enemies = []; projectiles = []; friendlyProjectiles = []; particles = []; powerUps = []; xpGems = []; floatingTexts = []; shockwaves = []; empShockwaves = []; lightningArcs = [];
-    score = 0; health = 100; maxHealth = 100; frames = 0; difficultyMultiplier = 1; bossSpawnTarget = 3000;
+    score = 0; health = 100; maxHealth = 100; frames = 0; difficultyMultiplier = 1; 
+    bossTier = 1; activeBoss = null; bossSpawnTarget = getNextBossTarget(bossTier);
     shakeTime = 0; slowTimeRemaining = 0; overchargeRemaining = 0;
     comboMultiplier = 1; comboTimer = 0;
     energy = 0; empReady = false; empReadyText.classList.add('hidden');
@@ -1674,9 +1892,29 @@ function addScore(basePts, x, y, color) {
     void comboContainer.offsetWidth; 
     comboContainer.classList.add('active');
     
-    if (score >= bossSpawnTarget) {
-        enemies.push(new DreadnoughtBoss());
-        bossSpawnTarget += 5000 + Math.floor(bossSpawnTarget * 0.5);
+    if (score >= bossSpawnTarget && !activeBoss) {
+        // Clear all normal enemies so player can focus on boss
+        enemies.forEach(e => {
+            createExplosion(e.x, e.y, e.color, 15);
+            getXpGem(e.x, e.y, e.pts);
+        });
+        enemies = [];
+        
+        let bossTypes = [DreadnoughtBoss, SwarmQueenBoss, WraithBoss];
+        let BossClass = bossTypes[Math.floor(Math.random() * bossTypes.length)];
+        
+        let boss = new BossClass(bossTier);
+        
+        // Spawn far outside the screen so it comes in dramatically
+        let angle = Math.random() * Math.PI * 2;
+        boss.x = core.x + Math.cos(angle) * (canvas.width);
+        boss.y = core.y + Math.sin(angle) * (canvas.height);
+        
+        enemies.push(boss);
+        activeBoss = boss;
+        
+        bossTier++;
+        bossSpawnTarget = getNextBossTarget(bossTier);
     }
 
     if (score > highScore) {
@@ -1940,6 +2178,7 @@ function endGame() {
 }
 
 function spawnEnemy() {
+    if (activeBoss) return; // Halt normal spawns during boss fight
     const rand = Math.random();
     let hasGravity = enemies.some(e => e instanceof GravityEnemy);
     let hasSniper = enemies.some(e => e instanceof SniperEnemy);
@@ -2084,6 +2323,71 @@ function drawNebulaBackground() {
         ctx.fill();
     }
     ctx.globalAlpha = 1.0;
+    ctx.restore();
+}
+
+function drawBossUI() {
+    if (!activeBoss) return;
+    
+    ctx.save();
+    
+    const barWidth = 400;
+    const barHeight = 25;
+    const x = canvas.width / 2 - barWidth / 2;
+    const y = 30;
+    
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(x - 5, y - 5, barWidth + 10, barHeight + 10);
+    ctx.strokeStyle = activeBoss.color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 5, y - 5, barWidth + 10, barHeight + 10);
+    
+    // Fill
+    const hpRatio = Math.max(0, activeBoss.hp / activeBoss.maxHp);
+    ctx.fillStyle = activeBoss.color;
+    ctx.fillRect(x, y, barWidth * hpRatio, barHeight);
+    
+    // Text
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Orbitron';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(activeBoss.name + ' - TIER ' + activeBoss.tier, canvas.width / 2, y + barHeight / 2);
+    
+    ctx.restore();
+}
+
+function drawBossUI() {
+    if (!activeBoss) return;
+    
+    ctx.save();
+    
+    const barWidth = 400;
+    const barHeight = 25;
+    const x = canvas.width / 2 - barWidth / 2;
+    const y = 30;
+    
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(x - 5, y - 5, barWidth + 10, barHeight + 10);
+    ctx.strokeStyle = activeBoss.color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 5, y - 5, barWidth + 10, barHeight + 10);
+    
+    // Fill
+    const hpRatio = Math.max(0, activeBoss.hp / activeBoss.maxHp);
+    ctx.fillStyle = activeBoss.color;
+    ctx.fillRect(x, y, barWidth * hpRatio, barHeight);
+    
+    // Text
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px Orbitron';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(activeBoss.name + ' - TIER ' + activeBoss.tier, canvas.width / 2, y + barHeight / 2);
+    
+    ctx.restore();
 }
 
 function gameLoop() {
@@ -2185,6 +2489,7 @@ function gameLoop() {
     }
 
     checkCollisions();
+    drawBossUI();
     ctx.restore();
     animationId = requestAnimationFrame(gameLoop);
 }
