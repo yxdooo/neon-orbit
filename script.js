@@ -376,6 +376,10 @@ window.addEventListener('keyup', (e) => {
     if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
     if (e.key === ' ') keys[' '] = false;
 });
+window.addEventListener('blur', () => {
+    // Prevent keys getting stuck if window loses focus
+    for (let key in keys) keys[key] = false;
+});
 window.addEventListener('mousemove', (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
