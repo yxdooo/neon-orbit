@@ -615,7 +615,8 @@ class AutoTurret {
                     closest.takeDamage(2);
                     if (closest.hp <= 0) {
                         closest.die();
-                        enemies.splice(enemies.indexOf(closest), 1);
+                        const idx = enemies.indexOf(closest);
+                        if (idx !== -1) enemies.splice(idx, 1);
                     }
                 } else {
                     addScore(closest.pts, closest.x, closest.y, closest.color);
@@ -1063,6 +1064,7 @@ class GravityEnemy extends Enemy {
             }
         }
         for(let x of xpGems) {
+            if (!x.active) continue;
             let xdx = this.x - x.x;
             let xdy = this.y - x.y;
             let xdist = Math.hypot(xdx, xdy);
@@ -1213,8 +1215,8 @@ class DreadnoughtBoss extends Enemy {
         return super.takeDamage(amount);
     }
     die() {
-        super.die(); // Sets active = false, adds score, base explosions
         activeBoss = null;
+        super.die(); // Sets active = false, adds score, base explosions
         createExplosion(this.x, this.y, this.color, 100);
         applyScreenShake(20, 20);
         for(let i=0; i<3; i++) {
@@ -1272,15 +1274,18 @@ class SwarmQueenBoss extends Enemy {
         }
         
         this.spawnTimer++;
-        if (this.spawnTimer > 120 - (this.tier * 5)) {
+        if (this.spawnTimer > Math.max(60, 120 - (this.tier * 5))) {
             this.spawnTimer = 0;
-            // Spawn 2-3 fast enemies
-            let count = 2 + Math.floor(this.tier / 2);
-            for(let i=0; i<count; i++) {
-                let e = new FastEnemy();
-                e.x = this.x + (Math.random() * 40 - 20);
-                e.y = this.y + (Math.random() * 40 - 20);
-                enemies.push(e);
+            const MAX_ENEMIES = 40;
+            let count = Math.min(2 + Math.floor(this.tier / 2), 4);
+            if (enemies.length < MAX_ENEMIES) {
+                for(let i=0; i<count; i++) {
+                    if (enemies.length >= MAX_ENEMIES) break;
+                    let e = new FastEnemy();
+                    e.x = this.x + (Math.random() * 40 - 20);
+                    e.y = this.y + (Math.random() * 40 - 20);
+                    enemies.push(e);
+                }
             }
         }
     }
@@ -1412,8 +1417,8 @@ class WraithBoss extends Enemy {
         this.flash = 5;
         // High chance to teleport when hit
         if (Math.random() > 0.85) {
-            this.x += (Math.random() * 200 - 100);
-            this.y += (Math.random() * 200 - 100);
+            this.x = Math.max(50, Math.min(canvas.width - 50, this.x + (Math.random() * 200 - 100)));
+        this.y = Math.max(50, Math.min(canvas.height - 50, this.y + (Math.random() * 200 - 100)));
             createExplosion(this.x, this.y, this.color, 10);
         }
         return super.takeDamage(amount);
@@ -1742,7 +1747,8 @@ class LightningArc {
                 createExplosion(this.target.x, this.target.y, this.target.color, 15);
                 getXpGem(this.target.x, this.target.y, this.target.pts);
                 if (this.target instanceof SplitterEnemy) this.target.split();
-                enemies.splice(enemies.indexOf(this.target), 1);
+                const idx = enemies.indexOf(this.target);
+                if (idx !== -1) enemies.splice(idx, 1);
             }
             sfx.playHit();
         }
@@ -2116,7 +2122,8 @@ function checkCollisions() {
         if (!e.active) continue;
 
         const dx = e.x - core.x; const dy = e.y - core.y;
-        if (Math.abs(dx) > player.radius + 100 || Math.abs(dy) > player.radius + 100) continue;
+        const threshold = (e === activeBoss) ? player.radius + 200 : player.radius + 100;
+        if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) continue;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
         if (!(e instanceof PhantomEnemy) && dist <= player.radius + e.radius + player.thickness/2 && dist >= player.radius - e.radius - player.thickness/2) {
@@ -2529,7 +2536,9 @@ function gameLoop() {
         for (let i = arr.length - 1; i >= 0; i--) {
             arr[i].update();
             arr[i].draw();
-            if (arr[i].life !== undefined && arr[i].life <= 0) arr.splice(i, 1);
+            if (arr[i].life !== undefined && arr[i].life <= 0) {
+                if (arr === floatingTexts || arr === particles || arr === xpGems) { arr[i].active = false; } else { arr.splice(i, 1); }
+            }
             else if (arr[i].active !== undefined && !arr[i].active) arr.splice(i, 1);
             else if (arr[i] instanceof Projectile || arr[i] instanceof FriendlyProjectile || arr[i] instanceof HomingMissile) {
                 if (arr[i].x < -500 || arr[i].x > canvas.width+500 || arr[i].y < -500 || arr[i].y > canvas.height+500) arr.splice(i, 1);
