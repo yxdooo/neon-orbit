@@ -442,7 +442,7 @@ function triggerEMP() {
         const e = enemies[i];
         addScore(e.pts, e.x, e.y, e.color);
         createExplosion(e.x, e.y, e.color, 15);
-        xpGems.push(new XpGem(e.x, e.y, e.pts));
+        getXpGem(e.x, e.y, e.pts);
     }
     enemies = [];
     projectiles = [];
@@ -603,7 +603,7 @@ class AutoTurret {
                 } else {
                     addScore(closest.pts, closest.x, closest.y, closest.color);
                     createExplosion(closest.x, closest.y, closest.color, 15);
-                    xpGems.push(new XpGem(closest.x, closest.y, closest.pts));
+                    getXpGem(closest.x, closest.y, closest.pts);
                     if (closest instanceof SplitterEnemy) closest.split();
                     enemies.splice(enemies.indexOf(closest), 1);
                 }
@@ -784,7 +784,7 @@ class Drone {
                 } else {
                     addScore(e.pts, e.x, e.y, e.color);
                     createExplosion(e.x, e.y, e.color, 15);
-                    xpGems.push(new XpGem(e.x, e.y, e.pts));
+                    getXpGem(e.x, e.y, e.pts);
                     if (e instanceof SplitterEnemy) e.split();
                     enemies.splice(i, 1);
                 }
@@ -856,7 +856,7 @@ class Enemy {
         this.active = false;
         addScore(this.pts, this.x, this.y, this.color);
         createExplosion(this.x, this.y, this.color, 15);
-        xpGems.push(new XpGem(this.x, this.y, this.pts));
+        getXpGem(this.x, this.y, this.pts);
         
         if (this instanceof SplitterEnemy) this.split();
     }
@@ -1194,7 +1194,7 @@ class DreadnoughtBoss extends Enemy {
             powerUps.push(p);
         }
         for(let i=0; i<20; i++) {
-            xpGems.push(new XpGem(this.x, this.y, 15));
+            getXpGem(this.x, this.y, 15);
         }
     }
 }
@@ -1491,7 +1491,7 @@ class LightningArc {
         if (this.life === 0 && enemies.indexOf(this.target) !== -1) {
             addScore(this.target.pts, this.target.x, this.target.y, this.target.color);
             createExplosion(this.target.x, this.target.y, this.target.color, 15);
-            xpGems.push(new XpGem(this.target.x, this.target.y, this.target.pts));
+            getXpGem(this.target.x, this.target.y, this.target.pts);
             if (this.target instanceof SplitterEnemy) this.target.split();
             enemies.splice(enemies.indexOf(this.target), 1);
             sfx.playHit();
