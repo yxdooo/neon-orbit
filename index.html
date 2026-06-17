@@ -37,29 +37,76 @@
 
             <div id="start-screen" class="overlay panel">
                 <h1 class="glitch-text" data-text="NEON ORBIT">NEON ORBIT</h1>
-                <div class="margin-top">HI-SCORE: <span id="hi-score-start">0</span></div>
-                <button id="start-btn" class="neon-button margin-top">[ START SYSTEM ]</button>
-                <button id="info-btn" class="neon-button margin-top" style="display: block; margin-left: auto; margin-right: auto; margin-top: 15px;">[ HOW TO PLAY ]</button>
+                <div class="margin-top" style="font-size: 1.2rem; color: #aaa;">LOCAL HI-SCORE: <span id="hi-score-start" style="color: #fff;">0</span></div>
+                <div style="font-size: 1rem; color: #ffaa00; margin-top: 5px;">CREDITS: <span id="credits-start" style="font-weight: bold;">0</span> 💎</div>
+                
+                <button id="start-btn" class="neon-button margin-top" style="display: block; margin: 20px auto 0;">[ START SYSTEM ]</button>
+                <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                    <button id="armory-btn" class="neon-button" style="font-size: 16px; padding: 10px 20px;">[ ARMORY ]</button>
+                    <button id="leaderboard-btn" class="neon-button" style="font-size: 16px; padding: 10px 20px;">[ GLOBAL RANK ]</button>
+                </div>
+                <button id="info-btn" class="neon-button" style="display: block; margin: 15px auto 0; font-size: 16px; padding: 10px 20px;">[ HOW TO PLAY ]</button>
             </div>
 
-            <div id="info-screen" class="overlay panel hidden">
-                <h2 style="color: var(--powerup-blue); text-shadow: 0 0 10px var(--powerup-blue);">SYSTEM MANUAL</h2>
-                <div style="text-align: left; font-size: 14px; margin-top: 20px; max-width: 400px; line-height: 1.6;">
-                    <p><strong>CONTROLS:</strong> [W,A,S,D] to move. [MOUSE] to aim shield. [SHIFT] to Dash (Costs 20 Energy). [ESC] to pause.</p>
-                    <p><strong>LEVELING:</strong> Collect yellow XP gems dropped by enemies to level up and choose powerful upgrades, including <em>Orbiting Drones</em>!</p>
-                    <p><strong>COMBO:</strong> Chain blocks without getting hit! Reaching 10x, 20x etc. instantly restores +10 Health.</p>
-                    <p><strong>EMP (SPACE):</strong> Destroy enemies to charge your blue Energy Bar. Press [SPACE] when full to destroy all enemies on screen.</p>
-                    <p><strong>AUTO-TURRET:</strong> Your core automatically fires at the closest enemy to help you out.</p>
-                    <p><strong>POWER-UPS:</strong></p>
-                    <ul style="list-style: none; padding-left: 0;">
-                        <li style="color: var(--powerup-green);">[+] REPAIR: Restores 20 Health</li>
-                        <li style="color: var(--powerup-yellow);">[O] OVERCHARGE: 360° Shield for a short time</li>
-                        <li style="color: var(--powerup-blue);">[S] CHRONO-SLOW: Slows time by 50%</li>
-                        <li style="color: #ff00ff;">[M] MISSILES: Fires 10 homing missiles</li>
-                    </ul>
-                    <p><strong>ENEMIES:</strong> Watch out for <em>Weavers</em>, <em>Splitters</em>, <em>Gravity Wells</em>, <em>Snipers</em>, and the ghostly <em>Phantom</em> (which ignores your shield!). Every 3000 points, a massive <em>Dreadnought Boss</em> appears!</p>
+            <div id="info-screen" class="overlay panel hidden" style="width: 800px; max-width: 95%; max-height: 90vh; overflow-y: auto;">
+                <h2 style="color: var(--powerup-blue); text-shadow: 0 0 10px var(--powerup-blue); margin-bottom: 20px;">SYSTEM MANUAL</h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px; text-align: left; font-size: 14px; line-height: 1.6;">
+                    <div style="flex: 1; min-width: 300px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                        <h3 style="color: #fff; margin-top: 0;">BASIC PROTOCOLS</h3>
+                        <p><strong>[W,A,S,D]</strong>: Move your reactor core.</p>
+                        <p><strong>[MOUSE]</strong>: Aim your energy shield to intercept attacks.</p>
+                        <p><strong>[SHIFT]</strong>: Dash (Costs 20 Energy).</p>
+                        <p><strong>[SPACE]</strong>: Unleash EMP shockwave (Requires full Energy Bar).</p>
+                        <h3 style="color: #fff;">COMBAT MECHANICS</h3>
+                        <p><strong>LEVELING:</strong> Collect yellow XP gems to choose powerful upgrades.</p>
+                        <p><strong>COMBO:</strong> Chain blocks without taking damage! Reaching x10, x20 instantly restores Health.</p>
+                        <p><strong>CREDITS:</strong> Earn 1 Credit per 10 points scored. Spend them in the Armory!</p>
+                    </div>
+                    <div style="flex: 1; min-width: 300px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                        <h3 style="color: #fff; margin-top: 0;">POWER-UPS</h3>
+                        <ul style="list-style: none; padding-left: 0; margin: 0;">
+                            <li style="color: var(--powerup-green);">[+] REPAIR: Restores 20 Health</li>
+                            <li style="color: var(--powerup-yellow);">[O] OVERCHARGE: 360° Shield</li>
+                            <li style="color: var(--powerup-blue);">[S] CHRONO-SLOW: Slows time</li>
+                            <li style="color: #ff00ff;">[M] MISSILES: Fires homing missiles</li>
+                        </ul>
+                        <h3 style="color: #fff;">THREAT ANALYSIS</h3>
+                        <p><strong>Weavers:</strong> Standard chasers.</p>
+                        <p><strong>Splitters:</strong> Break into smaller pieces.</p>
+                        <p><strong>Gravity Wells:</strong> Pull you towards them.</p>
+                        <p><strong>Snipers:</strong> Fire deflectable lasers.</p>
+                        <p style="color: #ff3333;"><strong>Phantoms:</strong> Ignore your shield! Dodge them!</p>
+                    </div>
                 </div>
-                <button id="close-info-btn" class="neon-button margin-top">[ CLOSE ]</button>
+                <button id="close-info-btn" class="neon-button" style="margin-top: 25px; display: inline-block;">[ ACKNOWLEDGE & CLOSE ]</button>
+            </div>
+
+            <div id="armory-screen" class="overlay panel hidden" style="width: 700px; max-width: 95%;">
+                <h2 style="color: #ffaa00; text-shadow: 0 0 10px #ffaa00;">THE ARMORY</h2>
+                <p style="color: #fff; margin-bottom: 20px;">CREDITS AVAILABLE: <span id="armory-credits" style="font-weight: bold; font-size: 1.2rem;">0</span> 💎</p>
+                <div style="display: flex; gap: 20px; text-align: left;">
+                    <div style="flex: 1; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,170,0,0.3);">
+                        <h3 style="margin-top: 0; color: #aaa;">CORE COLORS</h3>
+                        <div id="shop-colors" style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                    <div style="flex: 1; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,170,0,0.3);">
+                        <h3 style="margin-top: 0; color: #aaa;">SHIELD STYLES</h3>
+                        <div id="shop-shields" style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                </div>
+                <button id="close-armory-btn" class="neon-button" style="margin-top: 20px;">[ CLOSE ARMORY ]</button>
+            </div>
+
+            <div id="leaderboard-screen" class="overlay panel hidden" style="width: 500px; max-width: 95%;">
+                <h2 style="color: #00ffff; text-shadow: 0 0 10px #00ffff;">GLOBAL LEADERBOARD</h2>
+                <div id="leaderboard-content" style="text-align: left; background: rgba(0,0,0,0.5); border-radius: 10px; padding: 15px; margin-top: 15px; min-height: 200px; font-family: 'Orbitron', monospace;">
+                    Loading Top Pilots...
+                </div>
+                <button id="close-leaderboard-btn" class="neon-button" style="margin-top: 20px;">[ CLOSE ]</button>
             </div>
 
             <div id="game-over-screen" class="overlay panel hidden">
@@ -81,6 +128,7 @@
                 <h1 class="glitch-text">PAUSED</h1>
                 <p>System Suspended.</p>
                 <button id="resume-btn" class="neon-button">RESUME</button>
+                <button id="lobby-btn" class="neon-button" style="margin-top: 15px; --powerup-color: #ff00aa; border-color: #ff00aa; color: #ff00aa;">[ RETURN TO LOBBY ]</button>
             </div>
 
             <button id="mute-btn" class="icon-button">🔊</button>

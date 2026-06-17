@@ -28,9 +28,22 @@ const empReadyText = document.getElementById('emp-ready-text');
 const startBtn = document.getElementById('start-btn');
 const infoBtn = document.getElementById('info-btn');
 const closeInfoBtn = document.getElementById('close-info-btn');
+const armoryBtn = document.getElementById('armory-btn');
+const closeArmoryBtn = document.getElementById('close-armory-btn');
+const leaderboardBtn = document.getElementById('leaderboard-btn');
+const closeLeaderboardBtn = document.getElementById('close-leaderboard-btn');
 const restartBtn = document.getElementById('restart-btn');
 const resumeBtn = document.getElementById('resume-btn');
+const lobbyBtn = document.getElementById('lobby-btn');
 const muteBtn = document.getElementById('mute-btn');
+
+const armoryScreen = document.getElementById('armory-screen');
+const leaderboardScreen = document.getElementById('leaderboard-screen');
+const leaderboardContent = document.getElementById('leaderboard-content');
+const shopColors = document.getElementById('shop-colors');
+const shopShields = document.getElementById('shop-shields');
+const armoryCreditsEl = document.getElementById('armory-credits');
+const creditsStartEl = document.getElementById('credits-start');
 
 // --- SOUND ENGINE ---
 class SoundEngine {
@@ -69,6 +82,7 @@ class SoundEngine {
     playReflect() { this.playTone(800, 'sine', 0.1, 0.2, 200); }
     playMissile() { this.playTone(300, 'sawtooth', 0.2, 0.1, -150); }
     playXP() { this.playTone(1200, 'sine', 0.05, 0.05, 0); }
+    playClick() { this.playTone(600, 'square', 0.05, 0.05); }
     playLevelUp() { 
         this.playTone(400, 'sine', 0.1, 0.1); 
         setTimeout(()=>this.playTone(600, 'sine', 0.1, 0.1), 100);
@@ -87,6 +101,9 @@ muteBtn.addEventListener('click', () => {
 let gameState = 'START'; 
 let score = 0;
 let highScore = localStorage.getItem('neonOrbitHighScore') || 0;
+let totalCredits = parseInt(localStorage.getItem('neonOrbitCredits')) || 0;
+let unlockedColors = JSON.parse(localStorage.getItem('neonOrbitUnlockedColors')) || ['#00ffff'];
+let activeColor = localStorage.getItem('neonOrbitActiveColor') || '#00ffff';
 let health = 100;
 let maxHealth = 100;
 let animationId;
@@ -150,7 +167,7 @@ const keys = {
 // Perks
 const PERK_POOL = [
     { id: 'speed', title: 'THRUSTERS', icon: '🚀', desc: '+1 Core Movement Speed' },
-    { id: 'health', title: 'REINFORCED HULL', icon: '🛡️', desc: '+20 Max HP & Heal 20' }, // NERF: Only heal 20
+    { id: 'health', title: 'REINFORCED HULL', icon: '🛡️', desc: '+20 Max HP & Heal 20' },
     { id: 'shield_thick', title: 'HEAVY SHIELD', icon: '🔰', desc: 'Thicker Shield Defenses' },
     { id: 'shield_wide', title: 'WIDE SHIELD', icon: '弧', desc: 'Wider Shield Coverage Arc' },
     { id: 'turret_fast', title: 'RAPID TURRET', icon: '🔫', desc: '-15% Turret Cooldown' },
@@ -161,6 +178,8 @@ const PERK_POOL = [
 
 // Initialization
 hiScoreStart.innerText = highScore;
+hiScoreInGame.innerText = highScore;
+creditsStartEl.innerText = totalCredits;
 
 // Resize Canvas
 function resize() {
@@ -178,7 +197,6 @@ resize();
 function initStars() {
     stars = [];
     for(let i=0; i<150; i++) {
-        // V9 Visuals: Colored stars
         let colors = ['#ffffff', '#aaddff', '#ffaadd'];
         stars.push({
             x: Math.random() * canvas.width * 3 - canvas.width,
@@ -193,13 +211,125 @@ function initStars() {
 
 // UI Navigation
 infoBtn.addEventListener('click', () => {
+    sfx.playClick();
     startScreen.classList.add('hidden');
     infoScreen.classList.remove('hidden');
 });
 closeInfoBtn.addEventListener('click', () => {
+    sfx.playClick();
     infoScreen.classList.add('hidden');
     startScreen.classList.remove('hidden');
 });
+
+// Armory Handlers
+armoryBtn.addEventListener('click', () => {
+    sfx.playClick();
+    startScreen.classList.add('hidden');
+    armoryScreen.classList.remove('hidden');
+    renderArmory();
+});
+
+closeArmoryBtn.addEventListener('click', () => {
+    sfx.playClick();
+    armoryScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+});
+
+// Leaderboard Handlers
+leaderboardBtn.addEventListener('click', () => {
+    sfx.playClick();
+    startScreen.classList.add('hidden');
+    leaderboardScreen.classList.remove('hidden');
+    fetchLeaderboard();
+});
+
+closeLeaderboardBtn.addEventListener('click', () => {
+    sfx.playClick();
+    leaderboardScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+});
+
+function fetchLeaderboard() {
+    leaderboardContent.innerHTML = 'Loading Top Pilots...';
+    fetch('http://localhost:3001/api/leaderboard')
+        .then(res => res.json())
+        .then(data => {
+            if (data.length === 0) {
+                leaderboardContent.innerHTML = 'No records found. Be the first!';
+                return;
+            }
+            let html = '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="border-bottom: 1px solid #00ffff;"><th style="padding: 5px;">RANK</th><th style="padding: 5px;">PILOT</th><th style="padding: 5px; text-align: right;">SCORE</th></tr>';
+            data.forEach((entry, i) => {
+                let color = i === 0 ? '#ffaa00' : (i < 3 ? '#aaaaaa' : '#ffffff');
+                html += `<tr style="color: ${color};"><td style="padding: 5px;">#${i+1}</td><td style="padding: 5px;">${entry.name}</td><td style="padding: 5px; text-align: right;">${entry.score}</td></tr>`;
+            });
+            html += '</table>';
+            leaderboardContent.innerHTML = html;
+        })
+        .catch(err => {
+            leaderboardContent.innerHTML = '<span style="color: #ff3333;">Failed to connect to Global Server.</span><br>Make sure the Node.js server is running!';
+        });
+}
+
+const AVAILABLE_COLORS = [
+    { id: '#00ffff', name: 'NEON CYAN', price: 0 },
+    { id: '#ff00aa', name: 'CYBER PINK', price: 500 },
+    { id: '#00ffaa', name: 'PLASMA GREEN', price: 500 },
+    { id: '#ffaa00', name: 'GOLDEN CORE', price: 1000 },
+    { id: '#ffffff', name: 'PURE WHITE', price: 2000 }
+];
+
+function renderArmory() {
+    armoryCreditsEl.innerText = totalCredits;
+    shopColors.innerHTML = '';
+    
+    AVAILABLE_COLORS.forEach(item => {
+        let isUnlocked = unlockedColors.includes(item.id);
+        let isActive = activeColor === item.id;
+        
+        let btn = document.createElement('button');
+        btn.className = 'neon-button';
+        btn.style.width = '100%';
+        btn.style.textAlign = 'left';
+        btn.style.display = 'flex';
+        btn.style.justifyContent = 'space-between';
+        
+        let text = `<span style="color: ${item.id}; text-shadow: 0 0 5px ${item.id};">⬤</span> ${item.name}`;
+        
+        if (isActive) {
+            btn.innerHTML = `${text} <span>[ EQUIPPED ]</span>`;
+            btn.style.borderColor = item.id;
+            btn.style.boxShadow = `0 0 10px ${item.id}, inset 0 0 10px ${item.id}`;
+        } else if (isUnlocked) {
+            btn.innerHTML = `${text} <span>[ EQUIP ]</span>`;
+        } else {
+            btn.innerHTML = `${text} <span>${item.price} 💎</span>`;
+        }
+        
+        btn.onclick = () => {
+            sfx.playClick();
+            if (isUnlocked) {
+                activeColor = item.id;
+                localStorage.setItem('neonOrbitActiveColor', activeColor);
+                if (core) core.color = activeColor;
+            } else if (totalCredits >= item.price) {
+                totalCredits -= item.price;
+                unlockedColors.push(item.id);
+                localStorage.setItem('neonOrbitCredits', totalCredits);
+                localStorage.setItem('neonOrbitUnlockedColors', JSON.stringify(unlockedColors));
+                sfx.playPowerUp();
+            } else {
+                return;
+            }
+            creditsStartEl.innerText = totalCredits;
+            renderArmory();
+        };
+        shopColors.appendChild(btn);
+    });
+    
+    shopShields.innerHTML = '<p style="color: #666; text-align: center;">[ UNDER CONSTRUCTION ]</p>';
+}
 
 // Input Listeners
 window.addEventListener('keydown', (e) => {
@@ -222,15 +352,42 @@ window.addEventListener('mousemove', (e) => {
     mouseY = e.clientY;
 });
 
+lobbyBtn.addEventListener('click', returnToLobby);
+
 function togglePause() {
     if (gameState === 'PLAYING') {
         gameState = 'PAUSED';
         pauseScreen.classList.remove('hidden');
+        if (animationId) cancelAnimationFrame(animationId);
     } else if (gameState === 'PAUSED') {
         gameState = 'PLAYING';
         pauseScreen.classList.add('hidden');
         gameLoop();
     }
+}
+
+function returnToLobby() {
+    gameState = 'START';
+    if (animationId) cancelAnimationFrame(animationId);
+    sfx.playClick();
+    
+    // Hide all in-game panels
+    pauseScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    scoreBoard.classList.add('hidden');
+    healthBoard.classList.add('hidden');
+    armoryScreen.classList.add('hidden');
+    leaderboardScreen.classList.add('hidden');
+    infoScreen.classList.add('hidden');
+    
+    // Show start screen
+    startScreen.classList.remove('hidden');
+    creditsStartEl.innerText = totalCredits;
+    hiScoreStart.innerText = highScore;
+    
+    // Clear canvas
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 function triggerEMP() {
@@ -256,8 +413,8 @@ class Core {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.radius = 30;
-        this.color = '#00ffff';
+        this.radius = 15;
+        this.color = activeColor;
         this.pulse = 0;
         this.ringRotation = 0;
         this.speed = 3.5;
@@ -281,7 +438,6 @@ class Core {
         this.x += this.vx;
         this.y += this.vy;
         
-        // Thruster trail
         if (this.vx !== 0 || this.vy !== 0) {
             this.trail.push({x: this.x, y: this.y});
             if (this.trail.length > 10) this.trail.shift();
@@ -299,61 +455,53 @@ class Core {
         
         ctx.save();
         
-        // Draw Trail
         if (this.trail.length > 0) {
             ctx.beginPath();
             ctx.moveTo(this.trail[0].x, this.trail[0].y);
             for(let i=1; i<this.trail.length; i++) ctx.lineTo(this.trail[i].x, this.trail[i].y);
             ctx.lineTo(this.x, this.y);
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+            ctx.strokeStyle = `rgba(${parseInt(this.color.slice(1,3),16)}, ${parseInt(this.color.slice(3,5),16)}, ${parseInt(this.color.slice(5,7),16)}, 0.4)`;
             ctx.lineWidth = this.radius * 0.8;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.shadowBlur = 15;
-            ctx.shadowColor = '#00ffff';
+            ctx.shadowColor = this.color;
             ctx.stroke();
             ctx.shadowBlur = 0;
         }
 
         ctx.translate(this.x, this.y);
         
-        // V9 Visuals: High-tech Reactor Core
-        
-        // Outer glow
         ctx.beginPath();
         ctx.arc(0, 0, currentRadius + 20, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.05)';
+        ctx.fillStyle = this.color.replace(')', ', 0.05)').replace('rgb', 'rgba');
         ctx.fill();
 
-        // Rotating Ring 1
         ctx.rotate(this.ringRotation);
         ctx.beginPath();
         ctx.arc(0, 0, currentRadius + 10, 0, Math.PI * 1.5);
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+        ctx.strokeStyle = this.color;
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Rotating Ring 2 (Opposite)
         ctx.rotate(-this.ringRotation * 2.5);
         ctx.beginPath();
-        ctx.arc(0, 0, currentRadius + 5, 0, Math.PI);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.arc(0, 0, Math.max(0.1, currentRadius + 5), 0, Math.PI);
+        ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Inner Core
         ctx.rotate(this.ringRotation * 1.5);
         ctx.beginPath();
-        ctx.arc(0, 0, currentRadius - 5, 0, Math.PI * 2);
+        ctx.arc(0, 0, Math.max(0.1, currentRadius - 5), 0, Math.PI * 2);
         ctx.fillStyle = this.color;
         ctx.shadowBlur = 20;
         ctx.shadowColor = this.color;
         ctx.fill();
         ctx.shadowBlur = 0;
         
-        // Bright center
         ctx.beginPath();
-        ctx.arc(0, 0, currentRadius - 15, 0, Math.PI * 2);
+        ctx.arc(0, 0, Math.max(0.1, currentRadius - 15), 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
 
@@ -447,7 +595,6 @@ class PlayerShield {
         let targetAngle = Math.atan2(mouseY - core.y, mouseX - core.x);
         if (targetAngle < 0) targetAngle += Math.PI * 2;
         
-        // BALANCE: Dash costs 20 Energy
         if (keys.Shift && this.dashCooldown === 0 && energy >= 20) {
             energy -= 20;
             updateUI();
@@ -480,7 +627,6 @@ class PlayerShield {
         }
     }
     draw() {
-        // V9 Visuals: Energy barrier look
         ctx.beginPath();
         ctx.arc(core.x, core.y, this.radius, this.angle - this.arcLength/2, this.angle + this.arcLength/2);
         ctx.lineWidth = this.thickness;
@@ -490,7 +636,6 @@ class PlayerShield {
         ctx.shadowColor = this.color;
         ctx.stroke();
         
-        // Inner bright line
         ctx.beginPath();
         ctx.arc(core.x, core.y, this.radius, this.angle - this.arcLength/2, this.angle + this.arcLength/2);
         ctx.lineWidth = 2;
@@ -498,7 +643,6 @@ class PlayerShield {
         ctx.stroke();
         ctx.shadowBlur = 0;
         
-        // Inner faint fill for the energy arc
         ctx.beginPath();
         ctx.moveTo(core.x, core.y);
         ctx.arc(core.x, core.y, this.radius, this.angle - this.arcLength/2, this.angle + this.arcLength/2);
@@ -555,7 +699,6 @@ class Drone {
         this.trail.push({x: this.x, y: this.y});
         if (this.trail.length > 8) this.trail.shift();
         
-        // Drones damage enemies
         for (let i = enemies.length - 1; i >= 0; i--) {
             let e = enemies[i];
             if (Math.hypot(e.x - this.x, e.y - this.y) < e.radius + this.radius) {
@@ -822,7 +965,6 @@ class GravityEnemy extends Enemy {
     }
 }
 
-// V9: New Phantom Enemy
 class PhantomEnemy extends Enemy {
     constructor() {
         super();
@@ -844,7 +986,6 @@ class PhantomEnemy extends Enemy {
         ctx.shadowColor = '#ffffff';
         ctx.fill();
         
-        // Face
         ctx.fillStyle = '#000';
         ctx.beginPath();
         ctx.arc(this.x - 4, this.y - 2, 2, 0, Math.PI*2);
@@ -921,7 +1062,7 @@ class DreadnoughtBoss extends Enemy {
     }
     bounce() {
         this.hp--;
-        this.flash = 5; // Flash effect instead of velocity knockback
+        this.flash = 5;
         applyScreenShake(10, 10);
         createExplosion(this.x, this.y, this.color, 20);
         sfx.playCoreDamage(); 
@@ -1072,9 +1213,9 @@ class PowerUp {
         this.radius = 12;
         
         const types = [
-            { type: 'health', color: 'var(--powerup-green, #00ff00)', label: 'REPAIR', icon: '+' },
-            { type: 'overcharge', color: 'var(--powerup-yellow, #ffff00)', label: 'OVERCHARGE', icon: 'O' },
-            { type: 'slow', color: 'var(--powerup-blue, #0088ff)', label: 'CHRONO-SLOW', icon: 'S' },
+            { type: 'health', color: '#00ff00', label: 'REPAIR', icon: '+' },
+            { type: 'overcharge', color: '#ffff00', label: 'OVERCHARGE', icon: 'O' },
+            { type: 'slow', color: '#0088ff', label: 'CHRONO-SLOW', icon: 'S' },
             { type: 'missile', color: '#ff00ff', label: 'MISSILE SWARM', icon: 'M' }
         ];
         const selected = types[Math.floor(Math.random() * types.length)];
@@ -1236,7 +1377,6 @@ class LightningArc {
         ctx.beginPath();
         ctx.moveTo(this.startX, this.startY);
         
-        // Simple jagged line
         let segments = 5;
         let dx = this.target.x - this.startX;
         let dy = this.target.y - this.startY;
@@ -1260,11 +1400,11 @@ class FloatingText {
     constructor(x, y, text, color) {
         this.x = x; this.y = y; this.text = text; this.color = color;
         this.life = 1; this.vy = -2;
-        this.scale = 1.5; // Starts big
+        this.scale = 1.5;
     }
     update() {
         this.y += this.vy;
-        this.vy *= 0.95; // Friction
+        this.vy *= 0.95;
         this.life -= 0.02;
         if (this.scale > 1.0) this.scale -= 0.05;
     }
@@ -1323,7 +1463,7 @@ function updateUI() {
     if (comboMultiplier > 1) {
         comboContainer.style.color = `hsl(${Math.min(120, comboMultiplier*10)}, 100%, 50%)`;
     } else {
-        comboContainer.style.color = 'var(--powerup-yellow)';
+        comboContainer.style.color = '#ffff00';
     }
 
     healthBar.style.width = Math.min(100, Math.max(0, (health / maxHealth) * 100)) + '%';
@@ -1331,8 +1471,8 @@ function updateUI() {
         healthBar.style.background = '#ff0000';
         healthBar.style.boxShadow = '0 0 10px #ff0000';
     } else {
-        healthBar.style.background = 'var(--enemy-color)';
-        healthBar.style.boxShadow = '0 0 10px var(--enemy-color)';
+        healthBar.style.background = '#ff3300';
+        healthBar.style.boxShadow = '0 0 10px #ff3300';
     }
     
     energyBar.style.width = Math.min(100, (energy / maxEnergy) * 100) + '%';
@@ -1374,40 +1514,40 @@ function castChainLightning(x, y) {
 }
 
 function addScore(basePts, x, y, color) {
-        const totalPts = basePts * comboMultiplier;
-        score += totalPts;
-        floatingTexts.push(new FloatingText(x, y, `+${totalPts}`, color));
-        
-        if (!empReady) {
-            energy += 5 * energyGainMultiplier; 
-            updateUI();
-        }
-        
-        comboMultiplier = Math.min(50, comboMultiplier + 1); // V10: Cap combo at 50
-        
-        if (comboMultiplier > 1 && comboMultiplier % 10 === 0) {
-            health = Math.min(maxHealth, health + 10);
-            floatingTexts.push(new FloatingText(core.x, core.y - 60, 'COMBO HEAL +10', 'var(--powerup-green)'));
-            sfx.playPowerUp();
-        }
-        
-        comboTimer = 180; 
-        comboContainer.classList.remove('active');
-        void comboContainer.offsetWidth; 
-        comboContainer.classList.add('active');
-        
-        if (score >= bossSpawnTarget) {
-            enemies.push(new DreadnoughtBoss());
-            bossSpawnTarget += 5000 + Math.floor(bossSpawnTarget * 0.5); // V10: Exponential scaling
-        }
-
-        if (score > highScore) {
-            highScore = score;
-            hiScoreInGame.innerText = highScore;
-        }
-        if (score % 200 === 0) difficultyMultiplier += 0.1;
+    const totalPts = basePts * comboMultiplier;
+    score += totalPts;
+    floatingTexts.push(new FloatingText(x, y, `+${totalPts}`, color));
+    
+    if (!empReady) {
+        energy += 5 * energyGainMultiplier; 
         updateUI();
     }
+    
+    comboMultiplier = Math.min(50, comboMultiplier + 1);
+    
+    if (comboMultiplier > 1 && comboMultiplier % 10 === 0) {
+        health = Math.min(maxHealth, health + 10);
+        floatingTexts.push(new FloatingText(core.x, core.y - 60, 'COMBO HEAL +10', '#00ff00'));
+        sfx.playPowerUp();
+    }
+    
+    comboTimer = 180; 
+    comboContainer.classList.remove('active');
+    void comboContainer.offsetWidth; 
+    comboContainer.classList.add('active');
+    
+    if (score >= bossSpawnTarget) {
+        enemies.push(new DreadnoughtBoss());
+        bossSpawnTarget += 5000 + Math.floor(bossSpawnTarget * 0.5);
+    }
+
+    if (score > highScore) {
+        highScore = score;
+        hiScoreInGame.innerText = highScore;
+    }
+    if (score % 200 === 0) difficultyMultiplier += 0.1;
+    updateUI();
+}
 
 function addXp(amt) {
     xp += amt;
@@ -1450,7 +1590,7 @@ function selectPerk(id) {
     sfx.playPowerUp();
     switch(id) {
         case 'speed': core.speed += 1; break;
-        case 'health': maxHealth += 20; health = Math.min(maxHealth, health + 20); break; // NERF
+        case 'health': maxHealth += 20; health = Math.min(maxHealth, health + 20); break;
         case 'shield_thick': player.thickness += 5; break;
         case 'shield_wide': player.baseArcLength += 0.2; break;
         case 'turret_fast': turret.fireRate = Math.max(30, turret.fireRate * 0.85); break;
@@ -1465,7 +1605,6 @@ function selectPerk(id) {
 }
 
 function checkCollisions() {
-    // Projectiles vs Shield/Core
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
         const dx = p.x - core.x; const dy = p.y - core.y;
@@ -1479,7 +1618,6 @@ function checkCollisions() {
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
             
             if (Math.abs(angleDiff) <= player.arcLength / 2 + 0.1) {
-                // Deflect!
                 sfx.playReflect();
                 shockwaves.push(new Shockwave(p.x, p.y, player.color));
                 createExplosion(p.x, p.y, p.color, 5);
@@ -1501,11 +1639,10 @@ function checkCollisions() {
             gameContainer.classList.add('flash-red');
             projectiles.splice(i, 1);
             updateUI();
-            if (health <= 0) gameOver();
+            if (health <= 0) endGame();
         }
     }
     
-    // Friendly Projectiles vs Enemies
     for (let j = friendlyProjectiles.length - 1; j >= 0; j--) {
         const fp = friendlyProjectiles[j];
         for (let i = enemies.length - 1; i >= 0; i--) {
@@ -1531,7 +1668,6 @@ function checkCollisions() {
         }
     }
 
-    // Enemies vs Shield/Core
     for (let i = enemies.length - 1; i >= 0; i--) {
         const e = enemies[i];
         if (e.life !== undefined && e.life <= 0) {
@@ -1542,7 +1678,6 @@ function checkCollisions() {
         const dx = e.x - core.x; const dy = e.y - core.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
-        // Shield Collision (Phantom ignores shield)
         if (!(e instanceof PhantomEnemy) && dist <= player.radius + e.radius + player.thickness/2 && dist >= player.radius - e.radius - player.thickness/2) {
             let enemyAngle = Math.atan2(dy, dx);
             if (enemyAngle < 0) enemyAngle += Math.PI * 2;
@@ -1578,7 +1713,6 @@ function checkCollisions() {
             }
         }
         
-        // Core Collision
         if (dist < core.radius + e.radius) {
             sfx.playCoreDamage();
             health -= e.damage;
@@ -1600,11 +1734,10 @@ function checkCollisions() {
             }
             
             updateUI();
-            if (health <= 0) gameOver();
+            if (health <= 0) endGame();
         }
     }
 
-    // Powerups
     for (let i = powerUps.length - 1; i >= 0; i--) {
         const p = powerUps[i];
         const dx = p.x - core.x; const dy = p.y - core.y;
@@ -1637,7 +1770,6 @@ function checkCollisions() {
         if (dist < core.radius + p.radius) powerUps.splice(i, 1);
     }
     
-    // XP Gems vs Core
     for (let i = xpGems.length - 1; i >= 0; i--) {
         const g = xpGems[i];
         const dist = Math.hypot(g.x - core.x, g.y - core.y);
@@ -1652,19 +1784,42 @@ function checkCollisions() {
     }
 }
 
-function gameOver() {
+function endGame() {
     gameState = 'GAMEOVER';
     sfx.playGameOver();
     
-    if (score >= highScore && score > 0) {
-        localStorage.setItem('neonOrbitHighScore', score);
-        newRecordMsg.classList.remove('hidden');
-    }
-    
+    let earnedCredits = Math.floor(score / 10);
+    totalCredits += earnedCredits;
+    localStorage.setItem('neonOrbitCredits', totalCredits);
+    creditsStartEl.innerText = totalCredits;
+  
     finalScoreValue.innerText = score;
     gameOverScreen.classList.remove('hidden');
     scoreBoard.classList.add('hidden');
     healthBoard.classList.add('hidden');
+
+    let oldHigh = parseInt(localStorage.getItem('neonOrbitHighScore')) || 0;
+    if (score > oldHigh && score > 0) {
+        localStorage.setItem('neonOrbitHighScore', score);
+        newRecordMsg.classList.remove('hidden');
+        
+        // Ask for Initials for Global Leaderboard
+        setTimeout(() => {
+            let initials = prompt(`NEW RECORD! You earned ${earnedCredits} Credits.\nEnter 3 letters for the Global Leaderboard:`, "PIL");
+            if (initials) {
+                fetch('http://localhost:3001/api/leaderboard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: initials.toUpperCase(), score: score })
+                }).catch(err => console.log('Could not post to leaderboard'));
+            }
+        }, 500);
+    } else {
+        newRecordMsg.classList.add('hidden');
+        setTimeout(() => {
+            if(earnedCredits > 0) alert(`GAME OVER.\nYou earned ${earnedCredits} Credits!`);
+        }, 500);
+    }
 }
 
 function spawnEnemy() {
@@ -1744,15 +1899,14 @@ function drawNebulaBackground() {
     ctx.save();
     ctx.translate(cx, cy); // Horizon line
     let speed = frames * 0.05;
-    let gridSpacing = 80;
-    let maxZ = 30;
     
     // Vertical Lines (fanning out)
     ctx.lineWidth = 2;
     for (let x = -25; x <= 25; x++) {
         ctx.beginPath();
-        let startX = (x * gridSpacing * maxZ) / maxZ; 
-        let endX = (x * gridSpacing * maxZ) / 0.1;
+        // Scale down the horizon points and scale up the bottom points reasonably
+        let startX = x * 15; // Converge near horizon
+        let endX = x * 120;  // Fan out at the bottom
         ctx.moveTo(startX, 0); // Horizon
         ctx.lineTo(endX, canvas.height); // Bottom
         
@@ -1766,6 +1920,7 @@ function drawNebulaBackground() {
 
     // Horizontal Lines (moving towards camera)
     ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+    let maxZ = 30;
     for (let z = 1; z < maxZ; z++) {
         let actualZ = z - (speed % 1); // Moves from maxZ down to 0
         if (actualZ <= 0.1) continue;
@@ -1909,6 +2064,7 @@ function gameLoop() {
 startBtn.addEventListener('click', initGame);
 restartBtn.addEventListener('click', initGame);
 resumeBtn.addEventListener('click', togglePause);
+lobbyBtn.addEventListener('click', returnToLobby);
 
 // Initial clear
 ctx.fillStyle = '#050510';
