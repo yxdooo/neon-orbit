@@ -3,7 +3,7 @@ const ctx = canvas.getContext('2d');
 const offscreenCanvas = document.createElement('canvas');
 const offscreenCtx = offscreenCanvas.getContext('2d');
 const gameContainer = document.getElementById('game-container');
-const API_URL = 'http://localhost:3001';
+const API_URL = 'https://neon-orbit-production.up.railway.app';
 // UI Elements
 const uiLayer = document.getElementById('ui-layer');
 const startScreen = document.getElementById('start-screen');
