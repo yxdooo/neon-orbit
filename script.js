@@ -1139,7 +1139,7 @@ class DreadnoughtBoss extends Enemy {
         this.tier = tier;
         this.setupVelocity();
         sfx.playBossSpawn();
-        addFloatingText();
+        addFloatingText(canvas.width/2, canvas.height/4, 'DREADNOUGHT INCOMING', '#ff0000');
     }
     update() {
         if (!this.active) return;
@@ -1246,7 +1246,7 @@ class SwarmQueenBoss extends Enemy {
         this.tier = tier;
         this.setupVelocity();
         sfx.playBossSpawn();
-        addFloatingText();
+        addFloatingText(canvas.width/2, canvas.height/4, 'SWARM QUEEN INCOMING', '#ff00ff');
     }
     update() {
         if (!this.active) return;
@@ -1348,7 +1348,7 @@ class WraithBoss extends Enemy {
         this.tier = tier;
         this.setupVelocity();
         sfx.playBossSpawn();
-        addFloatingText();
+        addFloatingText(canvas.width/2, canvas.height/4, 'WRAITH INCOMING', '#00ffff');
     }
     update() {
         if (!this.active) return;
@@ -1526,7 +1526,9 @@ class HomingMissile {
     }
     update() {
         this.life--;
-        if (!this.target || enemies.indexOf(this.target) === -1) {
+        this.targetCheckTimer = (this.targetCheckTimer || 0) + 1;
+        if (!this.target || !this.target.active || this.targetCheckTimer > 10) {
+            this.targetCheckTimer = 0;
             let minDist = Infinity;
             for(let e of enemies) {
                 let d = Math.hypot(e.x - this.x, e.y - this.y);
@@ -1794,6 +1796,7 @@ class FloatingText {
         this.active = false;
             }
     init(x, y, text, color) {
+        this.active = true;
         this.x = x; this.y = y; this.text = text; this.color = color;
         this.life = 1; this.vy = -2;
         this.scale = 1.5;
@@ -1938,7 +1941,7 @@ function castChainLightning(x, y) {
 function addScore(basePts, x, y, color) {
     const totalPts = basePts * comboMultiplier;
     score += totalPts;
-    addFloatingText();
+    addFloatingText(x, y, `+${totalPts}`, color);
     
     if (!empReady) {
         energy += 5 * energyGainMultiplier; 
@@ -1949,7 +1952,7 @@ function addScore(basePts, x, y, color) {
     
     if (comboMultiplier > 1 && comboMultiplier % 10 === 0) {
         health = Math.min(maxHealth, health + 10);
-        addFloatingText();
+        addFloatingText(core.x, core.y - 60, 'COMBO HEAL +10', '#00ff00');
         sfx.playPowerUp();
     }
     
@@ -2180,7 +2183,7 @@ function checkCollisions() {
                     for(let m=0; m<6; m++) friendlyProjectiles.push(new HomingMissile(core.x, core.y)); 
                 }
                 
-                addFloatingText();
+                addFloatingText(p.x, p.y, p.label, p.color);
                 createExplosion(p.x, p.y, p.color, 20);
                 powerUps.splice(i, 1);
                 updateUI();
@@ -2399,8 +2402,6 @@ function drawNebulaBackground() {
         if (actualZ < 5) ctx.strokeStyle = 'rgba(255, 0, 255, 0.8)';
         else ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
         
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = ctx.strokeStyle;
         ctx.stroke();
     }
     
