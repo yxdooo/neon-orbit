@@ -609,7 +609,7 @@ class AutoTurret {
                 this.laserLife = 10;
                 sfx.playLaser();
                 
-                if (closest instanceof DreadnoughtBoss) {
+                if (closest === activeBoss) {
                     closest.takeDamage(2);
                     if (closest.hp <= 0) {
                         closest.die();
@@ -793,7 +793,7 @@ class Drone {
         for (let i = enemies.length - 1; i >= 0; i--) {
             let e = enemies[i];
             if (Math.hypot(e.x - this.x, e.y - this.y) < e.radius + this.radius) {
-                if (e instanceof DreadnoughtBoss) {
+                if (e === activeBoss) {
                     e.takeDamage(1);
                     if (e.hp <= 0) { e.die(); enemies.splice(i, 1); }
                 } else {
