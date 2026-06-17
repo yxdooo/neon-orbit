@@ -161,11 +161,7 @@ let slowTimeRemaining = 0;
 let overchargeRemaining = 0;
 
 // Input
-const keys = { 
-    w: false, a: false, s: false, d: false, 
-    W: false, A: false, S: false, D: false, 
-    Escape: false, ' ': false, Shift: false 
-};
+const keys = {};
 
 // Perks
 const PERK_POOL = [
@@ -362,8 +358,7 @@ function renderArmory() {
 
 // Input Listeners
 window.addEventListener('keydown', (e) => {
-    if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
-    if (e.key === ' ') keys[' '] = true;
+    keys[e.key.toLowerCase()] = true;
     
     if (e.key === 'Escape' && gameState === 'PLAYING') togglePause();
     else if (e.key === 'Escape' && gameState === 'PAUSED') togglePause();
@@ -373,8 +368,7 @@ window.addEventListener('keydown', (e) => {
     }
 });
 window.addEventListener('keyup', (e) => {
-    if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
-    if (e.key === ' ') keys[' '] = false;
+    keys[e.key.toLowerCase()] = false;
 });
 window.addEventListener('blur', () => {
     // Prevent keys getting stuck if window loses focus
@@ -460,10 +454,10 @@ class Core {
         let ay = 0;
         const accel = 0.8;
         
-        if (keys.w || keys.W) ay -= accel;
-        if (keys.s || keys.S) ay += accel;
-        if (keys.a || keys.A) ax -= accel;
-        if (keys.d || keys.D) ax += accel;
+        if (keys['w'] || keys['arrowup']) ay -= accel;
+        if (keys['s'] || keys['arrowdown']) ay += accel;
+        if (keys['a'] || keys['arrowleft']) ax -= accel;
+        if (keys['d'] || keys['arrowright']) ax += accel;
         
         if (ax !== 0 && ay !== 0) {
             ax *= 0.707;
@@ -644,7 +638,7 @@ class PlayerShield {
         let targetAngle = Math.atan2(mouseY - core.y, mouseX - core.x);
         if (targetAngle < 0) targetAngle += Math.PI * 2;
         
-        if (keys.Shift && this.dashCooldown === 0 && energy >= 20) {
+        if (keys['shift'] && this.dashCooldown === 0 && energy >= 20) {
             energy -= 20;
             updateUI();
             this.dashing = 15; 
