@@ -460,6 +460,7 @@ function returnToLobby() {
 function triggerEMP() {
     energy = 0;
     empReady = false;
+    empReadyText.classList.add('hidden');
     sfx.playEMP();
     applyScreenShake(20, 30);
     empShockwaves.push(new EmpShockwave());
