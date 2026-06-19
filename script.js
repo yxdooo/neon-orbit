@@ -81,7 +81,13 @@ class SoundEngine {
         osc.stop(this.ctx.currentTime + duration);
     }
 
-    playHit() { this.playTone(200, 'sawtooth', 0.1, 0.1, -100); }
+    // FIX: throttle hit sounds — boss fights fire dozens per frame, flooding the
+    // AudioContext node graph and causing audio thread lag that freezes the page.
+    playHit() {
+        if (!this.muted && this.ctx.currentTime - (this._lastHit || 0) < 0.04) return;
+        this._lastHit = this.ctx.currentTime;
+        this.playTone(200, 'sawtooth', 0.1, 0.1, -100);
+    }
     playCoreDamage() { this.playTone(100, 'square', 0.4, 0.2, -50); }
     playPowerUp() { this.playTone(400, 'sine', 0.3, 0.1, 400); }
     playGameOver() { this.playTone(150, 'sawtooth', 1.0, 0.2, -100); }
@@ -420,6 +426,9 @@ function togglePause() {
     } else if (gameState === 'PAUSED') {
         gameState = 'PLAYING';
         pauseScreen.classList.add('hidden');
+        // FIX: cancel any lingering rAF before starting a new gameLoop.
+        // Without this, two concurrent loops can form and double every frame.
+        if (animationId) cancelAnimationFrame(animationId);
         gameLoop();
     }
 }
@@ -449,21 +458,45 @@ function returnToLobby() {
 }
 
 function triggerEMP() {
-    energy = 0; 
-    updateUI();
+    energy = 0;
+    empReady = false;
     sfx.playEMP();
     applyScreenShake(20, 30);
     empShockwaves.push(new EmpShockwave());
-    
-    for (let i = enemies.length - 1; i >= 0; i--) {
+
+    // FIX: Batch scoring. Old code: N enemies × addScore = N × updateUI (DOM) + N × 15 particles.
+    // With 40 enemies that's 600 getParticle() calls + 40 DOM writes in one frame = instant freeze.
+    let empPts = 0;
+    let remainingEnemies = [];
+    for (let i = 0; i < enemies.length; i++) {
         const e = enemies[i];
-        addScore(e.pts, e.x, e.y, e.color);
-        createExplosion(e.x, e.y, e.color, 15);
-        getXpGem(e.x, e.y, e.pts);
+        if (e === activeBoss || e.name === "DREADNOUGHT" || e.name === "SWARM QUEEN" || e.name === "WRAITH") {
+            remainingEnemies.push(e);
+            e.takeDamage(200); // EMP deals massive damage to bosses but doesn't wipe them
+        } else {
+            empPts += e.pts;
+            createExplosion(e.x, e.y, e.color, 5);
+            getXpGem(e.x, e.y, e.pts);
+        }
     }
-    enemies = [];
+    enemies = remainingEnemies;
     projectiles = [];
-    powerUps = []; 
+    powerUps = [];
+
+    if (empPts > 0) {
+        const totalPts = empPts * comboMultiplier;
+        score += totalPts;
+        comboMultiplier = Math.min(50, comboMultiplier + 1);
+        comboTimer = 180;
+        addEnergy(5 * energyGainMultiplier);
+        addFloatingText(core.x, core.y - 60, `\u26a1 EMP +${totalPts}`, '#ffffff');
+        comboContainer.classList.remove('active');
+        void comboContainer.offsetWidth;
+        comboContainer.classList.add('active');
+        if (score > highScore) { highScore = score; hiScoreInGame.innerText = highScore; }
+        if (score >= nextDifficultyTarget) { difficultyMultiplier += 0.1; nextDifficultyTarget += 200; }
+    }
+    updateUI();
 }
 
 // --- CLASSES ---
@@ -776,9 +809,9 @@ function getXpGem(x, y, value) {
         xpGems.push(g);
         return g;
     }
-    let g = xpGems.shift();
+    // FIX: Replaced O(N) shift() with O(1) random overwrite to prevent GC lag
+    let g = xpGems[Math.floor(Math.random() * xpGems.length)];
     g.init(x, y, value);
-    xpGems.push(g);
     return g;
 }
 
@@ -1488,12 +1521,14 @@ class FriendlyProjectile {
         this.history = [];
     }
     update() {
+        if (!this.active) return; // FIX: pooled — skip when inactive
         this.history.push({x: this.x, y: this.y});
         if (this.history.length > 6) this.history.shift();
         this.x += this.vx;
         this.y += this.vy;
     }
     draw() {
+        if (!this.active) return; // FIX: pooled — skip when inactive
         ctx.save();
         if (this.history.length > 0) {
             ctx.beginPath();
@@ -1530,6 +1565,7 @@ class HomingMissile {
         this.vy = Math.sin(angle) * this.speed;
     }
     update() {
+        if (!this.active) return; // FIX: pooled — skip when inactive
         this.life--;
         this.targetCheckTimer = (this.targetCheckTimer || 0) + 1;
         if (!this.target || !this.target.active || this.targetCheckTimer > 10) {
@@ -1556,6 +1592,7 @@ class HomingMissile {
         if (this.trail.length > 8) this.trail.shift();
     }
     draw() {
+        if (!this.active) return; // FIX: pooled — skip when inactive
         if (this.trail.length > 0) {
             ctx.beginPath();
             ctx.moveTo(this.trail[0].x, this.trail[0].y);
@@ -1780,7 +1817,8 @@ class LightningArc {
 const MAX_FLOATING_TEXTS = 30;
 function addFloatingText(x, y, text, color) {
     for (let i = 0; i < floatingTexts.length; i++) {
-        if (floatingTexts[i].life <= 0) {
+        // FIX: check !active instead of life <= 0
+        if (!floatingTexts[i].active) {
             floatingTexts[i].init(x, y, text, color);
             return floatingTexts[i];
         }
@@ -1791,9 +1829,9 @@ function addFloatingText(x, y, text, color) {
         floatingTexts.push(f);
         return f;
     }
-    let f = floatingTexts.shift();
+    // FIX: Replaced O(N) shift() with O(1) random overwrite to prevent GC lag
+    let f = floatingTexts[Math.floor(Math.random() * floatingTexts.length)];
     f.init(x, y, text, color);
-    floatingTexts.push(f);
     return f;
 }
 
@@ -1808,12 +1846,15 @@ class FloatingText {
         this.scale = 1.5;
     }
     update() {
+        if (!this.active) return; // FIX: pooled — skip when inactive
         this.y += this.vy;
         this.vy *= 0.95;
         this.life -= 0.02;
         if (this.scale > 1.0) this.scale -= 0.05;
+        if (this.life <= 0) this.active = false;
     }
     draw() {
+        if (!this.active) return; // FIX: pooled — skip when inactive
         ctx.save();
         ctx.globalAlpha = Math.max(0, this.life);
         ctx.translate(this.x, this.y);
@@ -1914,9 +1955,9 @@ function getParticle(x, y, color) {
         particles.push(p);
         return p;
     }
-    let p = particles.shift();
+    // FIX: Replaced O(N) shift() with O(1) random overwrite to prevent GC lag
+    let p = particles[Math.floor(Math.random() * particles.length)];
     p.init(x, y, color);
-    particles.push(p);
     return p;
 }
 
@@ -2057,6 +2098,11 @@ function selectPerk(id) {
     updateUI();
     levelUpScreen.classList.add('hidden');
     gameState = 'PLAYING';
+    // FIX: cancel any pending rAF before calling gameLoop() directly.
+    // A rAF scheduled at the end of the last PLAYING frame may still be pending
+    // when the user clicks a perk; without this cancel, two concurrent loops start
+    // and double every subsequent frame -> exponential slowdown -> freeze.
+    if (animationId) cancelAnimationFrame(animationId);
     gameLoop();
 }
 
@@ -2202,14 +2248,19 @@ function checkCollisions() {
     
     for (let i = xpGems.length - 1; i >= 0; i--) {
         const g = xpGems[i];
+        // FIX: skip inactive gems — they were still being pulled toward the core
+        // and could be "collected" even when inactive, draining the pool.
+        if (!g.active) continue;
         const dist = Math.hypot(g.x - core.x, g.y - core.y);
-        if (dist < 150) {
+        if (dist < 150 && dist > 0.1) {
             g.x += (core.x - g.x) / dist * 5;
             g.y += (core.y - g.y) / dist * 5;
         }
         if (dist < core.radius + g.radius) {
             addXp(g.value);
-            xpGems.splice(i, 1);
+            // FIX: return to pool (active=false) instead of splicing.
+            // Splicing permanently removes the instance, draining the pool over time.
+            g.active = false;
         }
     }
 }
@@ -2428,7 +2479,9 @@ function drawNebulaBackground() {
         ctx.fill();
     }
     ctx.globalAlpha = 1.0;
-    ctx.restore();
+    // FIX: removed spurious ctx.restore() here — there is only one ctx.save() in
+    // this function (the grid section at top). The extra restore was popping the
+    // CALLER's canvas state every frame, corrupting transforms and compositing.
 }
 
 function drawBossUI() {
@@ -2537,10 +2590,17 @@ function gameLoop() {
             arr[i].update();
             arr[i].draw();
             if (arr[i].life !== undefined && arr[i].life <= 0) {
-                if (arr === floatingTexts || arr === particles || arr === xpGems) { arr[i].active = false; } else { arr.splice(i, 1); }
-            }
-            else if (arr[i].active !== undefined && !arr[i].active) arr.splice(i, 1);
-            else if (arr[i] instanceof Projectile || arr[i] instanceof FriendlyProjectile || arr[i] instanceof HomingMissile) {
+                if (arr === floatingTexts || arr === particles || arr === xpGems) { 
+                    arr[i].active = false; 
+                } else { 
+                    arr.splice(i, 1); 
+                }
+            } else if (arr[i].active !== undefined && !arr[i].active) {
+                // FIX: Do not splice pooled objects. Let them stay in the array.
+                if (arr !== floatingTexts && arr !== particles && arr !== xpGems) {
+                    arr.splice(i, 1);
+                }
+            } else if (arr[i] instanceof Projectile || arr[i] instanceof FriendlyProjectile || arr[i] instanceof HomingMissile) {
                 if (arr[i].x < -500 || arr[i].x > canvas.width+500 || arr[i].y < -500 || arr[i].y > canvas.height+500) arr.splice(i, 1);
             }
         }
