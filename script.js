@@ -2054,11 +2054,16 @@ function addScore(basePts, x, y, color) {
         
         let boss = new BossClass(bossTier - 1); // tier was already incremented above
         
-        // Spawn just outside the visible screen edge so boss arrives quickly
+        // Spawn boss at the very edge of the canvas (always visible immediately)
         let angle = Math.random() * Math.PI * 2;
-        let spawnDist = Math.max(canvas.width, canvas.height) / 2 + 200;
-        boss.x = core.x + Math.cos(angle) * spawnDist;
-        boss.y = core.y + Math.sin(angle) * spawnDist;
+        let cx = canvas.width / 2;
+        let cy = canvas.height / 2;
+        // Find where the angle hits the screen edge, then add a small margin
+        let hw = canvas.width / 2 - boss.radius - 10;
+        let hh = canvas.height / 2 - boss.radius - 10;
+        let t = Math.min(hw / (Math.abs(Math.cos(angle)) || 0.001), hh / (Math.abs(Math.sin(angle)) || 0.001));
+        boss.x = cx + Math.cos(angle) * t;
+        boss.y = cy + Math.sin(angle) * t;
         
         enemies.push(boss);
         activeBoss = boss;
