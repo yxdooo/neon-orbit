@@ -2054,10 +2054,11 @@ function addScore(basePts, x, y, color) {
         
         let boss = new BossClass(bossTier - 1); // tier was already incremented above
         
-        // Spawn far outside the screen so it comes in dramatically
+        // Spawn just outside the visible screen edge so boss arrives quickly
         let angle = Math.random() * Math.PI * 2;
-        boss.x = core.x + Math.cos(angle) * (canvas.width);
-        boss.y = core.y + Math.sin(angle) * (canvas.height);
+        let spawnDist = Math.max(canvas.width, canvas.height) / 2 + 200;
+        boss.x = core.x + Math.cos(angle) * spawnDist;
+        boss.y = core.y + Math.sin(angle) * spawnDist;
         
         enemies.push(boss);
         activeBoss = boss;
@@ -2692,9 +2693,9 @@ function gameLoop() {
         const distFromCore = Math.sqrt(dx*dx + dy*dy);
         if (distFromCore > Math.max(canvas.width, canvas.height) + 500) {
             if (e === activeBoss) {
-                // Keep boss in bounds
-                e.x = core.x + (dx/distFromCore) * (Math.max(canvas.width, canvas.height));
-                e.y = core.y + (dy/distFromCore) * (Math.max(canvas.width, canvas.height));
+                // Teleport boss back to just outside screen edge so it can come in
+                e.x = core.x + (dx/distFromCore) * (Math.max(canvas.width, canvas.height) / 2 + 150);
+                e.y = core.y + (dy/distFromCore) * (Math.max(canvas.width, canvas.height) / 2 + 150);
             } else {
                 enemies.splice(i, 1);
             }
