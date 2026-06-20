@@ -891,7 +891,7 @@ class Enemy {
         }
         this.radius = 10;
         this.color = '#ff3300';
-        this.speed = (1.2 + Math.random() * 0.7) * Math.min(difficultyMultiplier, 2.0);  
+        this.speed = (1.0 + Math.random() * 0.6) * Math.min(difficultyMultiplier, 1.8);  
         this.pts = 10;
         this.damage = 5;
         this.trail = [];
@@ -1055,7 +1055,7 @@ class SniperEnemy extends Enemy {
                 this.y += this.vy;
             } else {
                 this.fireTimer++;
-                if (this.fireTimer > 120) {
+                if (this.fireTimer > 140) {
                     this.fire();
                     this.fireTimer = 0;
                     this.shotsFired++;
@@ -1204,7 +1204,7 @@ class DreadnoughtBoss extends Enemy {
         }
         
         this.spawnTimer++;
-        if (this.spawnTimer > 180 - (this.tier * 5)) {
+        if (this.spawnTimer > 210 - (this.tier * 5)) {
             this.spawnTimer = 0;
             let p = new EnemyProjectile(this.x, this.y, core.x, core.y, 4, 20 + this.tier * 5, this.color);
             p.radius = 10;
@@ -2638,7 +2638,7 @@ function gameLoop() {
 
     frames++;
     // V9: Harsher difficulty scaling
-    let currentSpawnRate = Math.max(18, 60 - difficultyMultiplier * 6);
+    let currentSpawnRate = Math.max(22, 70 - difficultyMultiplier * 5);
     if (slowTimeRemaining > 0) currentSpawnRate *= 2;
 
     if (frames % Math.floor(currentSpawnRate) === 0) spawnEnemy();
