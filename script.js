@@ -149,6 +149,7 @@ let shakeIntensity = 0;
 let bossTier = 1;
 let activeBoss = null;
 let bossSpawnTarget = 20000;
+let pendingBossSpawn = false; // FIX: defer boss spawn to start of next frame
 
 function getNextBossTarget(tier) {
     if (tier === 1) return 20000;
@@ -1902,7 +1903,7 @@ function initGame() {
     frames = 0;
     difficultyMultiplier = 1;
     nextDifficultyTarget = 200;
-    bossTier = 1; activeBoss = null; bossSpawnTarget = getNextBossTarget(bossTier);
+    bossTier = 1; activeBoss = null; bossSpawnTarget = getNextBossTarget(bossTier); pendingBossSpawn = false;
     shakeTime = 0; slowTimeRemaining = 0; overchargeRemaining = 0;
     comboMultiplier = 1; comboTimer = 0;
     energy = 0; empReady = false; empReadyText.classList.add('hidden');
@@ -2028,46 +2029,18 @@ function addScore(basePts, x, y, color) {
     comboContainer.classList.remove('active');
     void comboContainer.offsetWidth; 
     comboContainer.classList.add('active');
-    
-    if (score >= bossSpawnTarget && !activeBoss) {
-        // Bump the target immediately to prevent re-triggering on the same frame
+
+    if (score >= bossSpawnTarget && !activeBoss && !pendingBossSpawn) {
+        // Bump target immediately so this can't re-trigger this frame
         bossTier++;
         bossSpawnTarget = getNextBossTarget(bossTier);
-
-        // Clear all normal enemies so player can focus on boss
-        // Collect points in a batch — do NOT call addScore() per enemy here
-        // (that would re-enter this same block and spawn multiple bosses)
-        let bonusPts = 0;
-        enemies.forEach(e => {
-            bonusPts += e.pts;
-            createExplosion(e.x, e.y, e.color, 5);
-            getXpGem(e.x, e.y, e.pts);
-        });
-        enemies = [];
-        if (bonusPts > 0) {
-            score += bonusPts;
-            if (score > highScore) { highScore = score; hiScoreInGame.innerText = highScore; }
-        }
-        
-        let bossTypes = [DreadnoughtBoss, SwarmQueenBoss, WraithBoss];
-        let BossClass = bossTypes[Math.floor(Math.random() * bossTypes.length)];
-        
-        let boss = new BossClass(bossTier - 1); // tier was already incremented above
-        
-        // Spawn boss at the very edge of the canvas (always visible immediately)
-        let angle = Math.random() * Math.PI * 2;
-        let cx = canvas.width / 2;
-        let cy = canvas.height / 2;
-        // Find where the angle hits the screen edge, then add a small margin
-        let hw = canvas.width / 2 - boss.radius - 10;
-        let hh = canvas.height / 2 - boss.radius - 10;
-        let t = Math.min(hw / (Math.abs(Math.cos(angle)) || 0.001), hh / (Math.abs(Math.sin(angle)) || 0.001));
-        boss.x = cx + Math.cos(angle) * t;
-        boss.y = cy + Math.sin(angle) * t;
-        
-        enemies.push(boss);
-        activeBoss = boss;
+        // Schedule actual spawn for start of next gameLoop frame.
+        // We CANNOT do enemies=[] here — addScore() is called from inside
+        // checkCollisions()'s for-loop. Mutating enemies mid-loop makes
+        // enemies[i] = undefined → TypeError → game loop crashes.
+        pendingBossSpawn = true;
     }
+
 
     if (score > highScore) {
         highScore = score;
@@ -2589,10 +2562,46 @@ function drawBossUI() {
     ctx.restore();
 }
 
+// Called at the VERY START of each gameLoop frame — safe to mutate enemies here
+function spawnPendingBoss() {
+    if (!pendingBossSpawn || activeBoss) return;
+    pendingBossSpawn = false;
 
+    // Clear all normal enemies and give bonus points (safe here, outside all loops)
+    let bonusPts = 0;
+    enemies.forEach(e => {
+        bonusPts += e.pts;
+        createExplosion(e.x, e.y, e.color, 5);
+        getXpGem(e.x, e.y, e.pts);
+    });
+    enemies = [];
+    if (bonusPts > 0) {
+        score += bonusPts;
+        if (score > highScore) { highScore = score; hiScoreInGame.innerText = highScore; }
+    }
+
+    let bossTypes = [DreadnoughtBoss, SwarmQueenBoss, WraithBoss];
+    let BossClass = bossTypes[Math.floor(Math.random() * bossTypes.length)];
+    let boss = new BossClass(bossTier - 1); // bossTier already incremented in addScore
+
+    // Spawn at screen edge — guaranteed visible immediately
+    let angle = Math.random() * Math.PI * 2;
+    let hw = canvas.width  / 2 - boss.radius - 10;
+    let hh = canvas.height / 2 - boss.radius - 10;
+    let t = Math.min(hw / (Math.abs(Math.cos(angle)) || 0.001), hh / (Math.abs(Math.sin(angle)) || 0.001));
+    boss.x = canvas.width  / 2 + Math.cos(angle) * t;
+    boss.y = canvas.height / 2 + Math.sin(angle) * t;
+
+    enemies.push(boss);
+    activeBoss = boss;
+    updateUI();
+}
 
 function gameLoop() {
     if (gameState !== 'PLAYING') return;
+
+    // Process deferred boss spawn FIRST — safe here, outside all iteration loops
+    spawnPendingBoss();
 
     drawNebulaBackground();
 
