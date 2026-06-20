@@ -648,16 +648,18 @@ class AutoTurret {
                 if (closest === activeBoss) {
                     closest.takeDamage(2);
                     if (closest.hp <= 0) {
-                        closest.die();
                         const idx = enemies.indexOf(closest);
                         if (idx !== -1) enemies.splice(idx, 1);
+                        closest.die();
                     }
                 } else {
+                    const idx = enemies.indexOf(closest);
+                    if (idx !== -1) enemies.splice(idx, 1);
+                    closest.active = false;
                     addScore(closest.pts, closest.x, closest.y, closest.color);
                     createExplosion(closest.x, closest.y, closest.color, 15);
                     getXpGem(closest.x, closest.y, closest.pts);
                     if (closest instanceof SplitterEnemy) closest.split();
-                    enemies.splice(enemies.indexOf(closest), 1);
                 }
             }
         }
@@ -839,13 +841,17 @@ class Drone {
             if (Math.hypot(e.x - this.x, e.y - this.y) < e.radius + this.radius) {
                 if (e === activeBoss) {
                     e.takeDamage(1);
-                    if (e.hp <= 0) { e.die(); enemies.splice(i, 1); }
+                    if (e.hp <= 0) {
+                        enemies.splice(i, 1);
+                        e.die();
+                    }
                 } else {
+                    enemies.splice(i, 1);
+                    e.active = false;
                     addScore(e.pts, e.x, e.y, e.color);
                     createExplosion(e.x, e.y, e.color, 15);
                     getXpGem(e.x, e.y, e.pts);
                     if (e instanceof SplitterEnemy) e.split();
-                    enemies.splice(i, 1);
                 }
                 sfx.playHit();
             }
@@ -885,7 +891,7 @@ class Enemy {
         }
         this.radius = 10;
         this.color = '#ff3300';
-        this.speed = (1.4 + Math.random() * 0.8) * Math.min(difficultyMultiplier, 2.5);  
+        this.speed = (1.2 + Math.random() * 0.7) * Math.min(difficultyMultiplier, 2.0);  
         this.pts = 10;
         this.damage = 5;
         this.trail = [];
@@ -911,9 +917,11 @@ class Enemy {
         return false;
     }
     
+    // NOTE: base die() intentionally does NOT call addScore().
+    // Callers that kill a normal enemy must call addScore() + getXpGem() themselves
+    // AFTER removing the enemy from the array to avoid re-entrant boss-spawn cascades.
     die() {
         this.active = false;
-        addScore(this.pts, this.x, this.y, this.color);
         createExplosion(this.x, this.y, this.color, 15);
         getXpGem(this.x, this.y, this.pts);
         
@@ -1047,7 +1055,7 @@ class SniperEnemy extends Enemy {
                 this.y += this.vy;
             } else {
                 this.fireTimer++;
-                if (this.fireTimer > 100) {
+                if (this.fireTimer > 120) {
                     this.fire();
                     this.fireTimer = 0;
                     this.shotsFired++;
@@ -1196,7 +1204,7 @@ class DreadnoughtBoss extends Enemy {
         }
         
         this.spawnTimer++;
-        if (this.spawnTimer > 150 - (this.tier * 5)) {
+        if (this.spawnTimer > 180 - (this.tier * 5)) {
             this.spawnTimer = 0;
             let p = new EnemyProjectile(this.x, this.y, core.x, core.y, 4, 20 + this.tier * 5, this.color);
             p.radius = 10;
@@ -1250,7 +1258,9 @@ class DreadnoughtBoss extends Enemy {
     }
     die() {
         activeBoss = null;
-        super.die(); // Sets active = false, adds score, base explosions
+        super.die(); // Sets active = false, creates base explosion + xp gems
+        // Boss-specific death rewards — addScore called by the killer code path
+        addScore(this.pts, this.x, this.y, this.color);
         createExplosion(this.x, this.y, this.color, 100);
         applyScreenShake(20, 20);
         for(let i=0; i<3; i++) {
@@ -1356,8 +1366,9 @@ class SwarmQueenBoss extends Enemy {
         return super.takeDamage(amount);
     }
     die() {
-        super.die();
         activeBoss = null;
+        super.die(); // Sets active = false, creates base explosion + xp gems
+        addScore(this.pts, this.x, this.y, this.color);
         createExplosion(this.x, this.y, this.color, 100);
         applyScreenShake(20, 20);
         for(let i=0; i<3; i++) {
@@ -1458,8 +1469,9 @@ class WraithBoss extends Enemy {
         return super.takeDamage(amount);
     }
     die() {
-        super.die();
         activeBoss = null;
+        super.die(); // Sets active = false, creates base explosion + xp gems
+        addScore(this.pts, this.x, this.y, this.color);
         createExplosion(this.x, this.y, this.color, 100);
         applyScreenShake(20, 20);
         for(let i=0; i<3; i++) {
@@ -1777,18 +1789,26 @@ class LightningArc {
     }
     update() {
         this.life--;
-        if (this.life === 0 && enemies.indexOf(this.target) !== -1) {
-            if (this.target === activeBoss) {
-                this.target.takeDamage(100);
-            } else {
-                addScore(this.target.pts, this.target.x, this.target.y, this.target.color);
-                createExplosion(this.target.x, this.target.y, this.target.color, 15);
-                getXpGem(this.target.x, this.target.y, this.target.pts);
-                if (this.target instanceof SplitterEnemy) this.target.split();
-                const idx = enemies.indexOf(this.target);
-                if (idx !== -1) enemies.splice(idx, 1);
+        if (this.life === 0) {
+            const idx = enemies.indexOf(this.target);
+            if (idx !== -1) {
+                if (this.target === activeBoss) {
+                    this.target.takeDamage(100);
+                    if (this.target.hp <= 0) {
+                        enemies.splice(idx, 1);
+                        this.target.die();
+                    }
+                } else {
+                    // Remove from array FIRST, then award points safely
+                    enemies.splice(idx, 1);
+                    this.target.active = false;
+                    addScore(this.target.pts, this.target.x, this.target.y, this.target.color);
+                    createExplosion(this.target.x, this.target.y, this.target.color, 15);
+                    getXpGem(this.target.x, this.target.y, this.target.pts);
+                    if (this.target instanceof SplitterEnemy) this.target.split();
+                }
+                sfx.playHit();
             }
-            sfx.playHit();
         }
     }
     draw() {
@@ -2010,17 +2030,29 @@ function addScore(basePts, x, y, color) {
     comboContainer.classList.add('active');
     
     if (score >= bossSpawnTarget && !activeBoss) {
+        // Bump the target immediately to prevent re-triggering on the same frame
+        bossTier++;
+        bossSpawnTarget = getNextBossTarget(bossTier);
+
         // Clear all normal enemies so player can focus on boss
+        // Collect points in a batch — do NOT call addScore() per enemy here
+        // (that would re-enter this same block and spawn multiple bosses)
+        let bonusPts = 0;
         enemies.forEach(e => {
-            createExplosion(e.x, e.y, e.color, 15);
+            bonusPts += e.pts;
+            createExplosion(e.x, e.y, e.color, 5);
             getXpGem(e.x, e.y, e.pts);
         });
         enemies = [];
+        if (bonusPts > 0) {
+            score += bonusPts;
+            if (score > highScore) { highScore = score; hiScoreInGame.innerText = highScore; }
+        }
         
         let bossTypes = [DreadnoughtBoss, SwarmQueenBoss, WraithBoss];
         let BossClass = bossTypes[Math.floor(Math.random() * bossTypes.length)];
         
-        let boss = new BossClass(bossTier);
+        let boss = new BossClass(bossTier - 1); // tier was already incremented above
         
         // Spawn far outside the screen so it comes in dramatically
         let angle = Math.random() * Math.PI * 2;
@@ -2029,9 +2061,6 @@ function addScore(basePts, x, y, color) {
         
         enemies.push(boss);
         activeBoss = boss;
-        
-        bossTier++;
-        bossSpawnTarget = getNextBossTarget(bossTier);
     }
 
     if (score > highScore) {
@@ -2157,13 +2186,34 @@ function checkCollisions() {
             if (Math.abs(e.x - fp.x) > e.radius + fp.radius || Math.abs(e.y - fp.y) > e.radius + fp.radius) continue;
             const dist = Math.hypot(e.x - fp.x, e.y - fp.y);
             if (dist < e.radius + fp.radius) {
-                e.takeDamage(15);
                 fp.active = false;
+                if (e === activeBoss) {
+                    e.takeDamage(15);
+                    if (e.hp <= 0) {
+                        enemies.splice(i, 1);
+                        e.die();
+                    }
+                } else {
+                    // Apply damage directly (bypassing active check since we know it's active)
+                    sfx.playHit();
+                    createExplosion(e.x, e.y, e.color, 5);
+                    e.hp -= 15;
+                    if (e.hp <= 0) {
+                        // Remove from array FIRST, then score to prevent boss-spawn mid-loop
+                        enemies.splice(i, 1);
+                        e.active = false;
+                        createExplosion(e.x, e.y, e.color, 15);
+                        addScore(e.pts, e.x, e.y, e.color);
+                        getXpGem(e.x, e.y, e.pts);
+                        if (e instanceof SplitterEnemy) e.split();
+                    }
+                }
                 break;
             }
         }
     }
 
+    let playerDied = false;
     for (let i = enemies.length - 1; i >= 0; i--) {
         const e = enemies[i];
         if (!e.active) continue;
@@ -2184,7 +2234,21 @@ function checkCollisions() {
             if (Math.abs(angleDiff) <= player.arcLength / 2 + 0.1) {
                 sfx.playHit();
                 shockwaves.push(new Shockwave(e.x, e.y, player.color));
-                e.takeDamage(100);
+                if (e === activeBoss) {
+                    e.takeDamage(100);
+                    if (e.hp <= 0) {
+                        enemies.splice(i, 1);
+                        e.die();
+                    }
+                } else {
+                    // Remove first, then die() to prevent boss-spawn mid-loop
+                    enemies.splice(i, 1);
+                    e.active = false;
+                    addScore(e.pts, e.x, e.y, e.color);
+                    createExplosion(e.x, e.y, e.color, 15);
+                    getXpGem(e.x, e.y, e.pts);
+                    if (e instanceof SplitterEnemy) e.split();
+                }
                 continue; 
             }
         }
@@ -2211,9 +2275,11 @@ function checkCollisions() {
             }
             
             updateUI();
-            if (health <= 0) endGame();
+            // Defer endGame() until after the loop to avoid corrupting iteration
+            if (health <= 0) { playerDied = true; break; }
         }
     }
+    if (playerDied) { endGame(); return; }
 
     for (let i = powerUps.length - 1; i >= 0; i--) {
         const p = powerUps[i];
@@ -2571,7 +2637,7 @@ function gameLoop() {
 
     frames++;
     // V9: Harsher difficulty scaling
-    let currentSpawnRate = Math.max(15, 60 - difficultyMultiplier * 8);
+    let currentSpawnRate = Math.max(18, 60 - difficultyMultiplier * 6);
     if (slowTimeRemaining > 0) currentSpawnRate *= 2;
 
     if (frames % Math.floor(currentSpawnRate) === 0) spawnEnemy();
