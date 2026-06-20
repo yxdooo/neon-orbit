@@ -1194,8 +1194,20 @@ class DreadnoughtBoss extends Enemy {
         this.vx = this.vx * 0.95 + (dx/dist)*this.speed * 0.05;
         this.vy = this.vy * 0.95 + (dy/dist)*this.speed * 0.05;
 
+        // Cap velocity so push-back can't send boss flying
+        const spd = Math.hypot(this.vx, this.vy);
+        const maxSpd = this.speed * 4;
+        if (spd > maxSpd) { this.vx = (this.vx/spd)*maxSpd; this.vy = (this.vy/spd)*maxSpd; }
+
         this.x += this.vx;
         this.y += this.vy;
+
+        // Hard clamp — boss can never leave the canvas
+        const r = this.radius;
+        if (this.x < r) { this.x = r; this.vx = Math.abs(this.vx); }
+        if (this.x > canvas.width  - r) { this.x = canvas.width  - r; this.vx = -Math.abs(this.vx); }
+        if (this.y < r) { this.y = r; this.vy = Math.abs(this.vy); }
+        if (this.y > canvas.height - r) { this.y = canvas.height - r; this.vy = -Math.abs(this.vy); }
 
         if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
             this.trail.push({x: this.x, y: this.y});
@@ -1245,16 +1257,14 @@ class DreadnoughtBoss extends Enemy {
         if (!this.active) return false;
         this.flash = 5;
         applyScreenShake(10, 10);
-        
-        // Push back
+        // Small push-back — capped so boss can't fly off screen
         const dx = this.x - core.x;
         const dy = this.y - core.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 0) {
-            this.vx += (dx / dist) * 10;
-            this.vy += (dy / dist) * 10;
+            this.vx += (dx / dist) * 2;
+            this.vy += (dy / dist) * 2;
         }
-        
         return super.takeDamage(amount);
     }
     die() {
@@ -1308,8 +1318,20 @@ class SwarmQueenBoss extends Enemy {
         this.vx = this.vx * 0.95 + (dx/dist)*targetSpeed * 0.05;
         this.vy = this.vy * 0.95 + (dy/dist)*targetSpeed * 0.05;
 
+        // Cap velocity
+        const spd = Math.hypot(this.vx, this.vy);
+        const maxSpd = this.speed * 4;
+        if (spd > maxSpd) { this.vx = (this.vx/spd)*maxSpd; this.vy = (this.vy/spd)*maxSpd; }
+
         this.x += this.vx;
         this.y += this.vy;
+
+        // Hard clamp — boss can never leave the canvas
+        const r = this.radius;
+        if (this.x < r) { this.x = r; this.vx = Math.abs(this.vx); }
+        if (this.x > canvas.width  - r) { this.x = canvas.width  - r; this.vx = -Math.abs(this.vx); }
+        if (this.y < r) { this.y = r; this.vy = Math.abs(this.vy); }
+        if (this.y > canvas.height - r) { this.y = canvas.height - r; this.vy = -Math.abs(this.vy); }
 
         if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
             this.trail.push({x: this.x, y: this.y});
@@ -1409,14 +1431,26 @@ class WraithBoss extends Enemy {
         const dy = core.y - this.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
-        // erratic movement
+        // Erratic movement
         let angle = Math.atan2(dy, dx) + Math.sin(this.pulse) * 1.5;
         
         this.vx = this.vx * 0.9 + Math.cos(angle)*this.speed * 0.1;
         this.vy = this.vy * 0.9 + Math.sin(angle)*this.speed * 0.1;
 
+        // Cap velocity
+        const spd = Math.hypot(this.vx, this.vy);
+        const maxSpd = this.speed * 3;
+        if (spd > maxSpd) { this.vx = (this.vx/spd)*maxSpd; this.vy = (this.vy/spd)*maxSpd; }
+
         this.x += this.vx;
         this.y += this.vy;
+
+        // Hard clamp — boss can never leave the canvas
+        const r = this.radius;
+        if (this.x < r) { this.x = r; this.vx = Math.abs(this.vx); }
+        if (this.x > canvas.width  - r) { this.x = canvas.width  - r; this.vx = -Math.abs(this.vx); }
+        if (this.y < r) { this.y = r; this.vy = Math.abs(this.vy); }
+        if (this.y > canvas.height - r) { this.y = canvas.height - r; this.vy = -Math.abs(this.vy); }
 
         if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
             this.trail.push({x: this.x, y: this.y});
@@ -2584,13 +2618,18 @@ function spawnPendingBoss() {
     let BossClass = bossTypes[Math.floor(Math.random() * bossTypes.length)];
     let boss = new BossClass(bossTier - 1); // bossTier already incremented in addScore
 
-    // Spawn at screen edge — guaranteed visible immediately
-    let angle = Math.random() * Math.PI * 2;
-    let hw = canvas.width  / 2 - boss.radius - 10;
-    let hh = canvas.height / 2 - boss.radius - 10;
-    let t = Math.min(hw / (Math.abs(Math.cos(angle)) || 0.001), hh / (Math.abs(Math.sin(angle)) || 0.001));
-    boss.x = canvas.width  / 2 + Math.cos(angle) * t;
-    boss.y = canvas.height / 2 + Math.sin(angle) * t;
+    // Spawn boss INSIDE the canvas — random safe position, away from edges and core
+    const margin = boss.radius + 80;
+    let bx, by, attempts = 0;
+    do {
+        bx = margin + Math.random() * (canvas.width  - margin * 2);
+        by = margin + Math.random() * (canvas.height - margin * 2);
+        attempts++;
+    } while (Math.hypot(bx - core.x, by - core.y) < 250 && attempts < 20);
+    boss.x = bx;
+    boss.y = by;
+    boss.vx = 0;
+    boss.vy = 0;
 
     enemies.push(boss);
     activeBoss = boss;
